@@ -1,0 +1,24 @@
+{
+  "name": "youzhao-demo-platform",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vue-tsc -b && vite build",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@primeuix/themes": "^1.2.3",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "primeicons": "^7.0.0",
+    "primevue": "^4.3.5",
+    "vue": "^3.5.16",
+    "vue-router": "^4.5.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.3",
+    "vite": "^6.3.5",
+    "vue-tsc": "^2.2.10"
+  }
+}

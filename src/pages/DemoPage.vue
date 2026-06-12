@@ -1,0 +1,415 @@
+<script setup lang="ts">
+import { computed, reactive, ref } from 'vue';
+import { useConfirm } from 'primevue/useconfirm';
+import { useToast } from 'primevue/usetoast';
+import Button from 'primevue/button';
+import Card from 'primevue/card';
+import Chip from 'primevue/chip';
+import ConfirmDialog from 'primevue/confirmdialog';
+import Dialog from 'primevue/dialog';
+import InputText from 'primevue/inputtext';
+import Menu from 'primevue/menu';
+import Select from 'primevue/select';
+import Textarea from 'primevue/textarea';
+import type { Demo } from '../types';
+import { useAppState } from '../state';
+
+const app = useAppState();
+const toast = useToast();
+const confirm = useConfirm();
+const contextMenu = ref<InstanceType<typeof Menu> | null>(null);
+const selectedVersions = reactive<Record<string, string>>({});
+const draggedDemoId = ref<string | null>(null);
+const editingDemo = ref<Demo | null>(null);
+const groupDialogVisible = ref(false);
+const editDialogVisible = ref(false);
+const newGroupName = ref('');
+const editForm = reactive({
+  name: '',
+  summary: '',
+  tags: '',
+  groupId: ''
+});
+
+const canViewDemo = computed(() => app.hasFunctionPermission('demo-preview', 'view'));
+const canManageDemo = computed(() => app.hasFunctionPermission('demo-preview', 'manage'));
+
+const groupsWithDemos = computed(() =>
+  app.visibleGroups.value.map((group) => ({
+    group,
+    demos: app.visibleDemos.value.filter((demo) => demo.groupId === group.id)
+  }))
+);
+
+const contextItems = computed(() => [
+  {
+    label: '编辑卡片信息',
+    icon: 'pi pi-pencil',
+    disabled: !canManageDemo.value,
+    command: openEditDialog
+  },
+  {
+    label: '移动到默认分组',
+    icon: 'pi pi-folder',
+    disabled: !canManageDemo.value || !editingDemo.value,
+    command: () => {
+      if (!editingDemo.value) return;
+      app.updateDemo(editingDemo.value.id, { groupId: 'group_default' });
+      toast.add({ severity: 'success', summary: '已移动', detail: 'Demo 已移动至默认分组', life: 2400 });
+    }
+  }
+]);
+
+function getSelectedVersionId(demo: Demo) {
+  if (!selectedVersions[demo.id]) {
+    selectedVersions[demo.id] =
+      demo.versions.find((version) => version.isLatest)?.id ?? demo.versions[0]?.id ?? '';
+  }
+  return selectedVersions[demo.id];
+}
+
+function openDemo(demo: Demo) {
+  const versionId = getSelectedVersionId(demo);
+  const version = demo.versions.find((item) => item.id === versionId);
+
+  if (!version || version.status !== 'available' || !version.previewUrl) {
+    toast.add({ severity: 'warn', summary: '版本不可用', detail: '当前版本不可用', life: 2600 });
+    return;
+  }
+
+  window.open(version.previewUrl, '_blank', 'noopener,noreferrer');
+}
+
+function createGroup() {
+  try {
+    app.createGroup(newGroupName.value);
+    newGroupName.value = '';
+    groupDialogVisible.value = false;
+    toast.add({ severity: 'success', summary: '分组已创建', life: 2200 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '创建失败', detail: (error as Error).message, life: 2800 });
+  }
+}
+
+function confirmDeleteGroup(groupId: string) {
+  confirm.require({
+    message: '删除分组后，该分组下的 Demo 将移动至“默认”分组。是否继续？',
+    header: '删除分组',
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: '取消',
+    acceptLabel: '删除',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      try {
+        app.deleteGroup(groupId);
+        toast.add({ severity: 'success', summary: '分组已删除', life: 2200 });
+      } catch (error) {
+        toast.add({ severity: 'error', summary: '删除失败', detail: (error as Error).message, life: 2800 });
+      }
+    }
+  });
+}
+
+function openContextMenu(event: MouseEvent, demo: Demo) {
+  editingDemo.value = demo;
+  contextMenu.value?.toggle(event);
+}
+
+function openEditDialog() {
+  if (!editingDemo.value) return;
+  editForm.name = editingDemo.value.name;
+  editForm.summary = editingDemo.value.summary;
+  editForm.tags = editingDemo.value.tags.join('，');
+  editForm.groupId = editingDemo.value.groupId;
+  editDialogVisible.value = true;
+}
+
+function saveDemoEdit() {
+  if (!editingDemo.value) return;
+  const tags = editForm.tags
+    .split(/[，,]/)
+    .map((tag) => tag.trim())
+    .filter(Boolean);
+
+  app.updateDemo(editingDemo.value.id, {
+    name: editForm.name,
+    summary: editForm.summary,
+    tags,
+    groupId: editForm.groupId
+  });
+  editDialogVisible.value = false;
+  toast.add({ severity: 'success', summary: 'Demo 信息已更新', life: 2200 });
+}
+
+function onDragStart(demo: Demo) {
+  if (!canManageDemo.value) return;
+  draggedDemoId.value = demo.id;
+}
+
+function onDrop(groupId: string) {
+  if (!canManageDemo.value || !draggedDemoId.value) return;
+  app.updateDemo(draggedDemoId.value, { groupId });
+  draggedDemoId.value = null;
+  toast.add({ severity: 'success', summary: '分组已变更', life: 1800 });
+}
+</script>
+
+<template>
+  <ConfirmDialog />
+  <Menu ref="contextMenu" :model="contextItems" popup />
+  <section v-if="canViewDemo" class="page-panel demo-page">
+    <div class="page-header">
+      <div>
+        <h1>Demo 展示</h1>
+        <p>按分组查看已授权 Demo，选择版本后点击卡片新页签打开。</p>
+      </div>
+      <div class="toolbar-row">
+        <Button
+          icon="pi pi-refresh"
+          label="刷新"
+          severity="secondary"
+          outlined
+          @click="toast.add({ severity: 'info', summary: '已刷新本地数据', life: 1600 })"
+        />
+        <Button
+          v-if="canManageDemo"
+          icon="pi pi-plus"
+          label="新建分组"
+          @click="groupDialogVisible = true"
+        />
+      </div>
+    </div>
+
+    <div v-if="app.visibleDemos.value.length === 0" class="empty-state">
+      当前用户暂无可访问 Demo
+    </div>
+
+    <div v-else class="group-stack">
+      <section
+        v-for="{ group, demos } in groupsWithDemos"
+        :key="group.id"
+        class="group-section"
+        @dragover.prevent
+        @drop="onDrop(group.id)"
+      >
+        <div class="group-header">
+          <div>
+            <h2>{{ group.name }}</h2>
+            <span>{{ demos.length }} 个 Demo</span>
+          </div>
+          <Button
+            v-if="canManageDemo && !group.isDefault"
+            icon="pi pi-trash"
+            text
+            severity="danger"
+            aria-label="删除分组"
+            v-tooltip.top="'删除分组'"
+            @click="confirmDeleteGroup(group.id)"
+          />
+        </div>
+
+        <div v-if="demos.length === 0" class="group-empty">暂无 Demo，拖动卡片到此分组</div>
+        <div v-else class="demo-grid">
+          <Card
+            v-for="demo in demos"
+            :key="demo.id"
+            class="demo-card"
+            :draggable="canManageDemo"
+            @dragstart="onDragStart(demo)"
+            @contextmenu.prevent="openContextMenu($event, demo)"
+            @click="openDemo(demo)"
+          >
+            <template #title>
+              <div class="demo-card-title">
+                <span>{{ demo.name }}</span>
+                <i v-if="canManageDemo" class="pi pi-arrows-alt" />
+              </div>
+            </template>
+            <template #content>
+              <p class="demo-summary">{{ demo.summary }}</p>
+              <div class="tag-row">
+                <Chip v-for="tag in demo.tags.slice(0, 5)" :key="tag" :label="tag" />
+                <Chip v-if="demo.tags.length > 5" :label="`+${demo.tags.length - 5}`" />
+              </div>
+              <div class="version-row" @click.stop>
+                <span>版本</span>
+                <Select
+                  v-model="selectedVersions[demo.id]"
+                  :options="demo.versions"
+                  optionLabel="version"
+                  optionValue="id"
+                  :placeholder="getSelectedVersionId(demo)"
+                  class="version-select"
+                />
+              </div>
+            </template>
+          </Card>
+        </div>
+      </section>
+    </div>
+  </section>
+
+  <div v-else class="denied-state">当前用户没有 Demo 预览权限</div>
+
+  <Dialog v-model:visible="groupDialogVisible" modal header="新建分组" :style="{ width: '420px' }">
+    <div class="dialog-form">
+      <div class="form-field">
+        <label for="group-name">分组名称</label>
+        <InputText id="group-name" v-model="newGroupName" autofocus />
+      </div>
+      <div class="toolbar-row dialog-actions">
+        <Button label="取消" severity="secondary" outlined @click="groupDialogVisible = false" />
+        <Button label="创建" icon="pi pi-plus" @click="createGroup" />
+      </div>
+    </div>
+  </Dialog>
+
+  <Dialog v-model:visible="editDialogVisible" modal header="编辑 Demo 信息" :style="{ width: '560px' }">
+    <div class="dialog-form">
+      <div class="form-field">
+        <label for="demo-name">Demo 名称</label>
+        <InputText id="demo-name" v-model="editForm.name" />
+      </div>
+      <div class="form-field">
+        <label for="demo-summary">概述</label>
+        <Textarea id="demo-summary" v-model="editForm.summary" rows="4" />
+      </div>
+      <div class="form-field">
+        <label for="demo-tags">标签</label>
+        <InputText id="demo-tags" v-model="editForm.tags" placeholder="使用逗号分隔" />
+      </div>
+      <div class="form-field">
+        <label for="demo-group">分组</label>
+        <Select id="demo-group" v-model="editForm.groupId" :options="app.state.groups" optionLabel="name" optionValue="id" />
+      </div>
+      <div class="toolbar-row dialog-actions">
+        <Button label="取消" severity="secondary" outlined @click="editDialogVisible = false" />
+        <Button label="保存" icon="pi pi-save" @click="saveDemoEdit" />
+      </div>
+    </div>
+  </Dialog>
+</template>
+
+<style scoped>
+.group-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.group-section {
+  padding: 16px;
+  border: 1px solid var(--p-surface-200);
+  border-radius: 8px;
+  background: var(--p-surface-0);
+}
+
+.group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.group-header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.group-header span {
+  display: block;
+  margin-top: 3px;
+  color: var(--p-surface-500);
+  font-size: 13px;
+}
+
+.group-empty {
+  display: grid;
+  place-items: center;
+  height: 112px;
+  border: 1px dashed var(--p-surface-300);
+  border-radius: 8px;
+  color: var(--p-surface-500);
+}
+
+.demo-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(260px, 1fr));
+  gap: 14px;
+}
+
+.demo-card {
+  min-height: 230px;
+  cursor: pointer;
+}
+
+.demo-card :deep(.p-card-body) {
+  height: 100%;
+}
+
+.demo-card-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 28px;
+}
+
+.demo-card-title span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.demo-card-title i {
+  color: var(--p-surface-400);
+  font-size: 13px;
+}
+
+.demo-summary {
+  display: -webkit-box;
+  min-height: 44px;
+  margin: 0 0 14px;
+  overflow: hidden;
+  color: var(--p-surface-600);
+  line-height: 1.55;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.tag-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 32px;
+  margin-bottom: 16px;
+}
+
+.tag-row :deep(.p-chip) {
+  border-radius: 6px;
+}
+
+.version-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--p-surface-200);
+}
+
+.version-row span {
+  color: var(--p-surface-500);
+  font-size: 13px;
+}
+
+.version-select {
+  width: 136px;
+}
+
+.dialog-actions {
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+</style>
