@@ -2,6 +2,8 @@
 
 本文档约束有招平台单机生产版部署方案。目标是让平台可以在一台 Linux 服务器上通过 Docker Compose 一键部署、升级、备份和恢复，尽量减少环境处理成本。
 
+命名约定：产品统一称为“蓝图”；历史 API 字段中的 `demoId` 可在兼容期继续读取，新接口和新部署路径优先使用 `blueprintId`。
+
 ## 1. 部署目标
 
 单机生产版面向小团队、内网私有化、售前演示和轻量生产场景。
@@ -10,7 +12,7 @@
 
 - 一台 Linux 服务器即可运行完整平台。
 - 仅强依赖 Docker 与 Docker Compose。
-- 使用统一入口访问前端、API 和 Demo 预览。
+- 使用统一入口访问前端、API 和蓝图预览。
 - 所有配置通过 `.env` 管理。
 - 所有业务数据通过 volume 持久化。
 - 数据库迁移与初始化自动执行。
@@ -32,7 +34,7 @@
 Gateway: Caddy 或 Nginx
   ├─ /                 Web 前端工作台
   ├─ /api              API 服务
-  ├─ /preview          Demo 预览静态产物
+  ├─ /preview          蓝图预览静态产物
   ├─ /assets           静态资源
   └─ /health           平台健康检查
 
@@ -40,7 +42,7 @@ Gateway: Caddy 或 Nginx
   ├─ web               前端静态服务
   ├─ api               后端 API
   ├─ worker            异步任务服务，MVP 可暂不启用
-  └─ preview-storage   Demo 预览产物挂载目录
+  └─ preview-storage   蓝图预览产物挂载目录
 
 基础服务
   └─ postgres          PostgreSQL 数据库
@@ -71,7 +73,7 @@ minio
 
 - 提供平台统一访问入口。
 - 反向代理前端与 API。
-- 暴露 Demo 预览静态产物。
+- 暴露蓝图预览静态产物。
 - 处理 HTTP 到 HTTPS。
 - 提供统一健康检查入口。
 
@@ -109,10 +111,10 @@ minio
 
 职责：
 
-- 提供用户、权限、Demo、分组、版本等 API。
+- 提供用户、权限、蓝图、分组、版本等 API。
 - 执行数据库迁移。
 - 执行系统初始化。
-- 返回 Demo 预览地址。
+- 返回蓝图预览地址。
 - 提供健康检查。
 
 约束：
@@ -140,26 +142,26 @@ minio
 
 职责：
 
-- 存储已部署 Demo 版本的静态产物。
+- 存储已部署 蓝图版本的静态产物。
 
 路径建议：
 
 ```text
-/data/youzhao/previews/{demoId}/{version}/
+/data/youzhao/previews/{blueprintId}/{version}/
 ```
 
 对外访问：
 
 ```text
-/preview/{demoId}/{version}/
+/preview/{blueprintId}/{version}/
 ```
 
 约束：
 
-- Demo 预览地址必须由后端返回。
+- 蓝图预览地址必须由后端返回。
 - 前端不得拼接预览 URL。
-- Demo 静态产物必须通过 volume 持久化。
-- 删除 Demo 或版本时，本期不自动物理删除产物，避免误删；后续可增加清理任务。
+- 蓝图 静态产物必须通过 volume 持久化。
+- 删除 蓝图 或版本时，本期不自动物理删除产物，避免误删；后续可增加清理任务。
 
 ## 4. 推荐目录结构
 
@@ -194,7 +196,7 @@ deploy/
 说明：
 
 - `/data/youzhao/postgres` 存储数据库数据。
-- `/data/youzhao/previews` 存储 Demo 静态预览产物。
+- `/data/youzhao/previews` 存储 蓝图 静态预览产物。
 - `/data/youzhao/backups` 存储备份文件。
 - `/data/youzhao/uploads` 存储上传文件，MVP 可暂不使用。
 - 日志优先输出到容器 stdout/stderr，`logs` 目录仅用于确需落盘的任务日志。
@@ -314,8 +316,8 @@ postgres:  pg_isready
 - 创建默认分组“默认”。
 - 创建功能权限定义。
 - 为默认管理员授予系统设置管理权限。
-- 为默认管理员授予 Demo 预览管理权限。
-- 可选：创建示例 Demo 和示例版本。
+- 为默认管理员授予 蓝图预览管理权限。
+- 可选：创建示例 蓝图 和示例版本。
 
 幂等要求：
 
@@ -410,7 +412,7 @@ postgres:  pg_isready
 备份内容：
 
 - PostgreSQL 数据。
-- Demo 预览静态产物。
+- 蓝图预览静态产物。
 - 上传文件。
 - `.env` 配置文件。
 
@@ -459,9 +461,9 @@ youzhao-backup-{yyyyMMdd-HHmmss}.tar.gz
 - 恢复前建议自动创建当前数据快照。
 - 恢复失败必须保留错误日志。
 
-## 11. Demo 预览部署约束
+## 11. 蓝图预览部署约束
 
-Demo 版本产物结构：
+蓝图版本产物结构：
 
 ```text
 /data/youzhao/previews/
@@ -533,9 +535,9 @@ GET /api/health
 - 首次登录应提示修改默认密码。
 - API 必须启用鉴权。
 - 系统设置接口必须校验系统设置管理权限。
-- Demo 修改类接口必须校验 Demo 预览管理权限。
-- Demo 查询接口必须按 Demo 权限过滤。
-- Demo 预览地址不应暴露未授权数据；如预览内容敏感，后续需增加带签名的访问控制。
+- 蓝图修改类接口必须校验 蓝图预览管理权限。
+- 蓝图查询接口必须按 蓝图权限过滤。
+- 蓝图预览地址不应暴露未授权数据；如预览内容敏感，后续需增加带签名的访问控制。
 - 数据库端口默认不暴露到宿主机公网。
 - `.env`、备份文件、数据库目录不得被 gateway 暴露。
 
@@ -544,7 +546,7 @@ GET /api/health
 为了支持单机一键部署，开发阶段必须遵守：
 
 - 前端 API 请求使用相对路径 `/api`。
-- 后端统一生成 Demo 预览地址。
+- 后端统一生成 蓝图预览地址。
 - 后端所有配置来自环境变量。
 - 所有持久化文件写入挂载目录。
 - 数据库 schema 变更必须通过迁移脚本。
@@ -563,7 +565,7 @@ GET /api/health
 - 首次部署自动创建默认分组。
 - 前端可通过 gateway 正常访问。
 - API 可通过 `/api/health` 正常返回。
-- Demo 预览产物可通过 `/preview/{demoId}/{version}/` 打开。
+- 蓝图预览产物可通过 `/preview/{demoId}/{version}/` 打开。
 - 重启服务器后数据不丢失。
 - 执行 `./deploy/backup.sh` 可生成备份文件。
 - 执行 `./deploy/restore.sh` 可恢复备份。
@@ -574,9 +576,9 @@ GET /api/health
 当单机生产版稳定后，可按需扩展：
 
 - 引入 Redis 承载任务队列和缓存。
-- 引入 worker 执行 Demo 构建、DSL 渲染、产物发布。
+- 引入 worker 执行 蓝图 构建、DSL 渲染、产物发布。
 - 引入 MinIO 替代本地 preview volume。
 - 增加 HTTPS 自动证书。
 - 增加操作审计。
-- 增加 Demo 访问统计。
+- 增加 蓝图访问统计。
 - 增加 Helm Chart 支持集群部署。

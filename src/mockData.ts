@@ -1,4 +1,4 @@
-import type { Demo, DemoGroup, DemoPermission, FunctionPermission, User } from './types';
+import type { Demo, DemoGroup, DemoPermission, FunctionPermission, McpToken, User } from './types';
 
 export const defaultGroupId = 'group_default';
 
@@ -15,7 +15,7 @@ export const usersSeed: User[] = [
   {
     id: 'user_demo_manager',
     username: 'demo.manager',
-    displayName: 'Demo 管理者',
+    displayName: '蓝图管理者',
     email: 'manager@youzhao.local',
     phone: '13800000001',
     status: 'enabled',
@@ -24,13 +24,19 @@ export const usersSeed: User[] = [
   {
     id: 'user_viewer',
     username: 'viewer',
-    displayName: 'Demo 查看者',
+    displayName: '蓝图查看者',
     email: 'viewer@youzhao.local',
     phone: '13800000002',
     status: 'enabled',
     createdAt: '2026-06-12 11:00'
   }
 ];
+
+export const authCredentialsSeed: Record<string, string> = {
+  admin: 'admin123',
+  'demo.manager': 'demo123',
+  viewer: 'viewer123'
+};
 
 export const groupsSeed: DemoGroup[] = [
   { id: defaultGroupId, name: '默认', isDefault: true, createdAt: '2026-06-12 09:00' },
@@ -53,7 +59,9 @@ export const demosSeed: Demo[] = [
         demoId: 'demo_invest_001',
         version: 'v1.1.0',
         isLatest: true,
-        previewUrl: 'https://example.com/preview/demo_invest_001/v1.1.0/',
+        previewUrl: '/blueprints/demo_invest_001/preview?version=v1.1.0',
+        artifactUrl: '/preview-artifacts/demo_invest_001/v1.1.0/index.html',
+        markdown: '# 招商驾驶舱 v1.1.0\n\n## 蓝图说明\n\n展示招商线索、在谈项目、签约金额与落地进展。\n\n## 页面模块\n\n- 核心指标总览\n- 招商阶段漏斗\n- 区域项目分布\n- 重点项目推进\n- 风险与待办提醒\n\n## 版本说明\n\n优化项目进度模块，补充风险提示和转化率指标。',
         status: 'available',
         deployedAt: '2026-06-12 12:00'
       },
@@ -62,7 +70,9 @@ export const demosSeed: Demo[] = [
         demoId: 'demo_invest_001',
         version: 'v1.0.0',
         isLatest: false,
-        previewUrl: 'https://example.com/preview/demo_invest_001/v1.0.0/',
+        previewUrl: '/blueprints/demo_invest_001/preview?version=v1.0.0',
+        artifactUrl: '/preview-artifacts/demo_invest_001/v1.0.0/index.html',
+        markdown: '# 招商驾驶舱 v1.0.0\n\n## 蓝图说明\n\n首版招商驾驶舱，覆盖项目总量、签约金额、落地项目与区域排名。\n\n## 页面模块\n\n- 指标卡片\n- 区域排行\n- 项目列表\n- 趋势分析',
         status: 'available',
         deployedAt: '2026-06-11 12:00'
       }
@@ -82,7 +92,9 @@ export const demosSeed: Demo[] = [
         demoId: 'demo_city_001',
         version: 'v1.1.0',
         isLatest: true,
-        previewUrl: 'https://example.com/preview/demo_city_001/v1.1.0/',
+        previewUrl: '/blueprints/demo_city_001/preview?version=v1.1.0',
+        artifactUrl: '/preview-artifacts/demo_city_001/v1.1.0/index.html',
+        markdown: '# 城市运行总览 v1.1.0\n\n## 蓝图说明\n\n面向城市治理场景，展示运行态势、事件、指标和预警。',
         status: 'available',
         deployedAt: '2026-06-12 13:00'
       },
@@ -92,6 +104,8 @@ export const demosSeed: Demo[] = [
         version: 'v1.0.0',
         isLatest: false,
         previewUrl: '',
+        artifactUrl: '',
+        markdown: '# 城市运行总览 v1.0.0\n\n当前版本不可用。',
         status: 'unavailable',
         deployedAt: '2026-06-10 13:00'
       }
@@ -111,7 +125,9 @@ export const demosSeed: Demo[] = [
         demoId: 'demo_default_001',
         version: 'v1.0.0',
         isLatest: true,
-        previewUrl: 'https://example.com/preview/demo_default_001/v1.0.0/',
+        previewUrl: '/blueprints/demo_default_001/preview?version=v1.0.0',
+        artifactUrl: '/preview-artifacts/demo_default_001/v1.0.0/index.html',
+        markdown: '# 项目交付进度看板 v1.0.0\n\n## 蓝图说明\n\n展示项目阶段、风险、评审、原型版本和交付物状态。',
         status: 'available',
         deployedAt: '2026-06-12 14:00'
       }
@@ -135,4 +151,27 @@ export const demoPermissionsSeed: DemoPermission[] = [
   { userId: 'user_demo_manager', targetType: 'group', targetId: 'group_invest' },
   { userId: 'user_viewer', targetType: 'group', targetId: defaultGroupId },
   { userId: 'user_viewer', targetType: 'demo', targetId: 'demo_invest_001' }
+];
+
+export const mcpTokensSeed: McpToken[] = [
+  {
+    id: 'mcp_token_codex',
+    name: 'Codex Agent',
+    boundUserId: 'user_admin',
+    status: 'enabled',
+    tokenPreview: 'yz_mcp_****_codex',
+    expiresAt: '2026-12-31 23:59',
+    lastUsedAt: '2026-06-12 15:30',
+    createdAt: '2026-06-12 15:00'
+  },
+  {
+    id: 'mcp_token_publish',
+    name: '蓝图发布 Agent',
+    boundUserId: 'user_demo_manager',
+    status: 'enabled',
+    tokenPreview: 'yz_mcp_****_pub1',
+    expiresAt: '2026-09-30 23:59',
+    lastUsedAt: '未使用',
+    createdAt: '2026-06-12 15:10'
+  }
 ];

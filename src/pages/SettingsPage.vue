@@ -8,6 +8,7 @@ import Column from 'primevue/column';
 import ConfirmDialog from 'primevue/confirmdialog';
 import DataTable from 'primevue/datatable';
 import Dialog from 'primevue/dialog';
+import DatePicker from 'primevue/datepicker';
 import InputText from 'primevue/inputtext';
 import RadioButton from 'primevue/radiobutton';
 import Select from 'primevue/select';
@@ -17,7 +18,7 @@ import TabList from 'primevue/tablist';
 import TabPanel from 'primevue/tabpanel';
 import TabPanels from 'primevue/tabpanels';
 import Tag from 'primevue/tag';
-import type { DemoPermission, PermissionLevel, User } from '../types';
+import type { DemoPermission, McpToken, PermissionLevel, User } from '../types';
 import { defaultGroupId } from '../mockData';
 import { useAppState } from '../state';
 
@@ -27,14 +28,18 @@ const confirm = useConfirm();
 
 const selectedUserId = ref(app.state.users[0]?.id ?? '');
 const userDialogVisible = ref(false);
+const passwordDialogVisible = ref(false);
+const tokenDialogVisible = ref(false);
 const editingUserId = ref<string | null>(null);
+const resettingUser = ref<User | null>(null);
 const activeTab = ref('users');
 const userForm = reactive({
   username: '',
   displayName: '',
   email: '',
   phone: '',
-  status: 'enabled' as User['status']
+  status: 'enabled' as User['status'],
+  password: ''
 });
 
 const permissionForm = reactive({
@@ -44,7 +49,15 @@ const permissionForm = reactive({
   demoIds: [] as string[]
 });
 
+const tokenForm = reactive({
+  name: '',
+  expiresAt: null as Date | null
+});
+
+const generatedToken = ref('');
+
 const canManageSettings = computed(() => app.hasFunctionPermission('system-settings', 'manage'));
+const canCreateToken = computed(() => app.hasFunctionPermission('demo-preview', 'manage'));
 const selectedUser = computed(() => app.state.users.find((user) => user.id === selectedUserId.value));
 
 watch(
@@ -70,7 +83,8 @@ function openCreateUser() {
     displayName: '',
     email: '',
     phone: '',
-    status: 'enabled'
+    status: 'enabled',
+    password: ''
   });
   userDialogVisible.value = true;
 }
@@ -82,7 +96,8 @@ function openEditUser(user: User) {
     displayName: user.displayName,
     email: user.email,
     phone: user.phone,
-    status: user.status
+    status: user.status,
+    password: ''
   });
   userDialogVisible.value = true;
 }
@@ -90,15 +105,38 @@ function openEditUser(user: User) {
 function saveUser() {
   try {
     if (editingUserId.value) {
-      app.updateUser(editingUserId.value, userForm);
+      const { password, ...payload } = userForm;
+      app.updateUser(editingUserId.value, payload);
       toast.add({ severity: 'success', summary: '用户已更新', life: 2200 });
     } else {
-      app.createUser(userForm);
-      toast.add({ severity: 'success', summary: '用户已创建', detail: '已默认开放 Demo 查看与默认分组', life: 2800 });
+      const { password, ...payload } = userForm;
+      app.createUser(payload, password || '123456');
+      toast.add({ severity: 'success', summary: '用户已创建', detail: `初始密码：${password || '123456'}`, life: 3200 });
     }
     userDialogVisible.value = false;
   } catch (error) {
     toast.add({ severity: 'error', summary: '保存失败', detail: (error as Error).message, life: 2800 });
+  }
+}
+
+const passwordForm = reactive({
+  password: ''
+});
+
+function openResetPassword(user: User) {
+  resettingUser.value = user;
+  passwordForm.password = '123456';
+  passwordDialogVisible.value = true;
+}
+
+function saveResetPassword() {
+  if (!resettingUser.value) return;
+  try {
+    app.resetUserPassword(resettingUser.value.id, passwordForm.password);
+    passwordDialogVisible.value = false;
+    toast.add({ severity: 'success', summary: '密码已重置', detail: `新密码：${passwordForm.password}`, life: 2800 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '重置失败', detail: (error as Error).message, life: 2800 });
   }
 }
 
@@ -151,6 +189,61 @@ function savePermissions() {
 function statusSeverity(status: User['status']) {
   return status === 'enabled' ? 'success' : 'secondary';
 }
+
+function tokenStatusSeverity(status: McpToken['status']) {
+  return status === 'enabled' ? 'success' : 'secondary';
+}
+
+function getUserName(userId: string) {
+  return app.state.users.find((user) => user.id === userId)?.displayName ?? '未知用户';
+}
+
+function openCreateToken() {
+  tokenForm.name = '';
+  tokenForm.expiresAt = null;
+  generatedToken.value = '';
+  tokenDialogVisible.value = true;
+}
+
+function createToken() {
+  try {
+    generatedToken.value = app.createMcpToken({
+      name: tokenForm.name,
+      boundUserId: app.currentUser.value?.id ?? '',
+      expiresAt: tokenForm.expiresAt
+        ? tokenForm.expiresAt.toLocaleString('zh-CN', { hour12: false })
+        : '永不过期'
+    });
+    toast.add({ severity: 'success', summary: 'Token 已创建', detail: '请在关闭前保存完整 Token', life: 3000 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '创建失败', detail: (error as Error).message, life: 2800 });
+  }
+}
+
+function toggleTokenStatus(token: McpToken) {
+  const nextStatus = token.status === 'enabled' ? 'disabled' : 'enabled';
+  app.setMcpTokenStatus(token.id, nextStatus);
+  toast.add({
+    severity: 'success',
+    summary: nextStatus === 'enabled' ? 'Token 已启用' : 'Token 已停用',
+    life: 2200
+  });
+}
+
+function confirmDeleteToken(token: McpToken) {
+  confirm.require({
+    header: '删除 Token',
+    message: `确认删除 Token“${token.name}”？删除后 Agent 将无法继续使用该凭证。`,
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: '取消',
+    acceptLabel: '删除',
+    acceptClass: 'p-button-danger',
+    accept: () => {
+      app.deleteMcpToken(token.id);
+      toast.add({ severity: 'success', summary: 'Token 已删除', life: 2200 });
+    }
+  });
+}
 </script>
 
 <template>
@@ -159,7 +252,26 @@ function statusSeverity(status: User['status']) {
     <div class="page-header">
       <div>
         <h1>系统设置</h1>
-        <p>管理用户、功能权限与 Demo 授权。</p>
+        <p>管理用户、功能权限与蓝图授权。</p>
+      </div>
+    </div>
+
+    <div class="metric-strip">
+      <div class="metric-tile">
+        <span>用户数</span>
+        <strong>{{ app.state.users.length }}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>蓝图分组</span>
+        <strong>{{ app.state.groups.length }}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>蓝图资产</span>
+        <strong>{{ app.state.demos.length }}</strong>
+      </div>
+      <div class="metric-tile">
+        <span>MCP Token</span>
+        <strong>{{ app.state.mcpTokens.length }}</strong>
       </div>
     </div>
 
@@ -167,6 +279,7 @@ function statusSeverity(status: User['status']) {
       <TabList>
         <Tab value="users">用户管理</Tab>
         <Tab value="permissions">权限管理</Tab>
+        <Tab value="tokens">Token 管理</Tab>
       </TabList>
       <TabPanels>
         <TabPanel value="users">
@@ -174,7 +287,7 @@ function statusSeverity(status: User['status']) {
             <div class="table-toolbar">
               <div>
                 <strong>用户列表</strong>
-                <span>新建用户默认拥有 Demo 查看权限和默认分组权限</span>
+                <span>新建用户默认拥有蓝图查看权限和默认分组权限</span>
               </div>
               <Button icon="pi pi-plus" label="新建用户" @click="openCreateUser" />
             </div>
@@ -202,6 +315,7 @@ function statusSeverity(status: User['status']) {
                 <template #body="{ data }">
                   <div class="row-actions">
                     <Button icon="pi pi-pencil" text aria-label="编辑" @click="openEditUser(data)" />
+                    <Button icon="pi pi-key" text severity="secondary" aria-label="重置密码" @click="openResetPassword(data)" />
                     <Button icon="pi pi-trash" text severity="danger" aria-label="删除" @click="confirmDeleteUser(data)" />
                   </div>
                 </template>
@@ -213,7 +327,10 @@ function statusSeverity(status: User['status']) {
         <TabPanel value="permissions">
           <div class="permission-layout">
             <div class="settings-card user-picker">
-              <strong>选择用户</strong>
+              <div>
+                <strong>选择用户</strong>
+                <span>切换后编辑该用户权限</span>
+              </div>
               <Select
                 v-model="selectedUserId"
                 :options="app.state.users"
@@ -222,8 +339,11 @@ function statusSeverity(status: User['status']) {
                 class="full-width"
               />
               <div v-if="selectedUser" class="user-summary">
-                <span>{{ selectedUser.username }}</span>
-                <span>{{ selectedUser.email }}</span>
+                <div class="user-avatar">{{ selectedUser.displayName.slice(0, 1) }}</div>
+                <div>
+                  <strong>{{ selectedUser.displayName }}</strong>
+                  <span>{{ selectedUser.username }} · {{ selectedUser.email }}</span>
+                </div>
               </div>
             </div>
 
@@ -237,7 +357,10 @@ function statusSeverity(status: User['status']) {
               </div>
 
               <div class="permission-section">
-                <h3>Demo 预览</h3>
+                <div class="section-heading">
+                  <h3>蓝图预览</h3>
+                  <span>控制用户是否能查看或维护蓝图展示内容</span>
+                </div>
                 <div class="radio-row">
                   <label>
                     <RadioButton v-model="permissionForm.demoLevel" inputId="demo-none" name="demo-level" :value="null" />
@@ -255,7 +378,10 @@ function statusSeverity(status: User['status']) {
               </div>
 
               <div class="permission-section">
-                <h3>系统设置</h3>
+                <div class="section-heading">
+                  <h3>系统设置</h3>
+                  <span>系统设置仅提供管理权限</span>
+                </div>
                 <label class="check-row">
                   <Checkbox v-model="permissionForm.systemSettingsManage" binary />
                   管理
@@ -263,7 +389,10 @@ function statusSeverity(status: User['status']) {
               </div>
 
               <div class="permission-section">
-                <h3>Demo 分组授权</h3>
+                <div class="section-heading">
+                  <h3>蓝图分组授权</h3>
+                  <span>按分组批量开放蓝图访问</span>
+                </div>
                 <div class="check-grid">
                   <label v-for="group in app.state.groups" :key="group.id" class="check-row">
                     <Checkbox v-model="permissionForm.groupIds" :value="group.id" />
@@ -274,7 +403,10 @@ function statusSeverity(status: User['status']) {
               </div>
 
               <div class="permission-section">
-                <h3>单个 Demo 授权</h3>
+                <div class="section-heading">
+                  <h3>单个蓝图授权</h3>
+                  <span>不受分组移动影响的独立授权</span>
+                </div>
                 <div class="check-grid">
                   <label v-for="demo in app.state.demos" :key="demo.id" class="check-row">
                     <Checkbox v-model="permissionForm.demoIds" :value="demo.id" />
@@ -283,6 +415,68 @@ function statusSeverity(status: User['status']) {
                 </div>
               </div>
             </div>
+          </div>
+        </TabPanel>
+
+        <TabPanel value="tokens">
+          <div class="settings-card">
+            <div class="table-toolbar">
+              <div>
+                <strong>MCP Token</strong>
+                <span>供 Agent 通过 MCP 获取蓝图产物或发布蓝图版本</span>
+              </div>
+              <Button
+                v-if="canCreateToken"
+                icon="pi pi-plus"
+                label="新建 Token"
+                @click="openCreateToken"
+              />
+            </div>
+            <DataTable
+              :value="app.state.mcpTokens"
+              dataKey="id"
+              paginator
+              :rows="10"
+              :rowsPerPageOptions="[10, 20, 50]"
+              removableSort
+              tableStyle="min-width: 72rem"
+            >
+              <Column field="name" header="Token 名称" sortable />
+              <Column field="tokenPreview" header="Token 标识" />
+              <Column field="boundUserId" header="绑定用户">
+                <template #body="{ data }">
+                  {{ getUserName(data.boundUserId) }}
+                </template>
+              </Column>
+              <Column field="status" header="状态">
+                <template #body="{ data }">
+                  <Tag :severity="tokenStatusSeverity(data.status)" :value="data.status === 'enabled' ? '启用' : '停用'" />
+                </template>
+              </Column>
+              <Column field="expiresAt" header="过期时间" sortable />
+              <Column field="lastUsedAt" header="最近使用" sortable />
+              <Column field="createdAt" header="创建时间" sortable />
+              <Column header="操作">
+                <template #body="{ data }">
+                  <div class="row-actions">
+                    <Button
+                      :icon="data.status === 'enabled' ? 'pi pi-pause' : 'pi pi-play'"
+                      text
+                      :severity="data.status === 'enabled' ? 'warn' : 'success'"
+                      :aria-label="data.status === 'enabled' ? '停用' : '启用'"
+                      @click="toggleTokenStatus(data)"
+                    />
+                    <Button
+                      icon="pi pi-trash"
+                      text
+                      severity="danger"
+                      aria-label="删除"
+                      @click="confirmDeleteToken(data)"
+                    />
+                  </div>
+                </template>
+              </Column>
+            </DataTable>
           </div>
         </TabPanel>
       </TabPanels>
@@ -323,10 +517,75 @@ function statusSeverity(status: User['status']) {
             optionValue="value"
           />
         </div>
+        <div v-if="!editingUserId" class="form-field">
+          <label for="password">初始密码</label>
+          <InputText id="password" v-model="userForm.password" placeholder="不填则默认 123456" />
+        </div>
       </div>
       <div class="toolbar-row dialog-actions">
         <Button label="取消" severity="secondary" outlined @click="userDialogVisible = false" />
         <Button label="保存" icon="pi pi-save" @click="saveUser" />
+      </div>
+    </div>
+  </Dialog>
+
+  <Dialog v-model:visible="passwordDialogVisible" modal header="重置密码" :style="{ width: '440px' }">
+    <div class="dialog-form">
+      <div class="form-field">
+        <label>用户</label>
+        <div class="bound-user-display">
+          <strong>{{ resettingUser?.displayName }}</strong>
+          <span>{{ resettingUser?.username }}</span>
+        </div>
+      </div>
+      <div class="form-field">
+        <label for="reset-password">新密码</label>
+        <InputText id="reset-password" v-model="passwordForm.password" autofocus />
+      </div>
+      <div class="toolbar-row dialog-actions">
+        <Button label="取消" severity="secondary" outlined @click="passwordDialogVisible = false" />
+        <Button label="保存" icon="pi pi-save" @click="saveResetPassword" />
+      </div>
+    </div>
+  </Dialog>
+
+  <Dialog v-model:visible="tokenDialogVisible" modal header="新建 MCP Token" :style="{ width: '560px' }">
+    <div class="dialog-form">
+      <div v-if="generatedToken" class="token-result">
+        <span>完整 Token 仅展示一次</span>
+        <code>{{ generatedToken }}</code>
+      </div>
+      <div class="form-field">
+        <label for="token-name">Token 名称</label>
+        <InputText id="token-name" v-model="tokenForm.name" :disabled="Boolean(generatedToken)" />
+      </div>
+      <div class="form-field">
+        <label for="token-user">绑定用户</label>
+        <div class="bound-user-display">
+          <strong>{{ app.currentUser.value?.displayName }}</strong>
+          <span>{{ app.currentUser.value?.username }}</span>
+        </div>
+      </div>
+      <div class="form-field">
+        <label for="token-expire">过期时间</label>
+        <DatePicker
+          id="token-expire"
+          v-model="tokenForm.expiresAt"
+          showTime
+          hourFormat="24"
+          showIcon
+          :disabled="Boolean(generatedToken)"
+          placeholder="不选择则永不过期"
+        />
+      </div>
+      <div class="toolbar-row dialog-actions">
+        <Button label="关闭" severity="secondary" outlined @click="tokenDialogVisible = false" />
+        <Button
+          v-if="!generatedToken"
+          label="创建"
+          icon="pi pi-key"
+          @click="createToken"
+        />
       </div>
     </div>
   </Dialog>
@@ -348,7 +607,7 @@ function statusSeverity(status: User['status']) {
 
 .table-toolbar span {
   margin-top: 4px;
-  color: var(--p-surface-500);
+  color: var(--app-muted);
   font-size: 13px;
 }
 
@@ -360,14 +619,21 @@ function statusSeverity(status: User['status']) {
 
 .permission-layout {
   display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
+  grid-template-columns: 300px minmax(0, 1fr);
   gap: 16px;
 }
 
 .user-picker {
   align-self: start;
   display: grid;
-  gap: 12px;
+  gap: 14px;
+}
+
+.user-picker span {
+  display: block;
+  margin-top: 4px;
+  color: var(--app-muted);
+  font-size: 13px;
 }
 
 .full-width {
@@ -375,10 +641,36 @@ function statusSeverity(status: User['status']) {
 }
 
 .user-summary {
-  display: grid;
-  gap: 4px;
-  color: var(--p-surface-500);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--app-border-soft);
+  border-radius: var(--app-radius);
+  background: var(--app-panel-muted);
+}
+
+.user-summary strong,
+.user-summary span {
+  display: block;
+}
+
+.user-summary span {
+  margin-top: 3px;
+  color: var(--app-muted);
   font-size: 13px;
+}
+
+.user-avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  flex: 0 0 38px;
+  place-items: center;
+  border-radius: 8px;
+  color: var(--app-primary);
+  background: var(--app-primary-weak);
+  font-weight: 800;
 }
 
 .permission-panel {
@@ -387,12 +679,25 @@ function statusSeverity(status: User['status']) {
 
 .permission-section {
   padding: 16px 0;
-  border-top: 1px solid var(--p-surface-200);
+  border-top: 1px solid var(--app-border-soft);
 }
 
 .permission-section h3 {
-  margin: 0 0 12px;
+  margin: 0;
   font-size: 15px;
+}
+
+.section-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.section-heading span {
+  color: var(--app-muted);
+  font-size: 13px;
 }
 
 .radio-row,
@@ -408,12 +713,21 @@ function statusSeverity(status: User['status']) {
   align-items: center;
   gap: 8px;
   min-height: 32px;
-  color: var(--p-surface-700);
+  color: var(--app-text);
 }
 
 .check-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.check-grid .check-row,
+.radio-row label {
+  padding: 8px 10px;
+  border: 1px solid var(--app-border-soft);
+  border-radius: 8px;
+  background: var(--app-panel-muted);
 }
 
 .form-grid {
@@ -425,5 +739,41 @@ function statusSeverity(status: User['status']) {
 .dialog-actions {
   justify-content: flex-end;
   margin-top: 4px;
+}
+
+.token-result {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  background: var(--app-primary-weak);
+}
+
+.token-result span {
+  color: var(--app-muted);
+  font-size: 13px;
+}
+
+.token-result code {
+  overflow-wrap: anywhere;
+  color: var(--app-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
+.bound-user-display {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-panel-muted);
+}
+
+.bound-user-display span {
+  color: var(--app-muted);
+  font-size: 13px;
 }
 </style>

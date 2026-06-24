@@ -1,31 +1,26 @@
 <script setup lang="ts">
-import { computed } from 'vue';
+import { computed, onBeforeUnmount, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import Avatar from 'primevue/avatar';
+import Button from 'primevue/button';
 import ConfirmDialog from 'primevue/confirmdialog';
-import Select from 'primevue/select';
 import Toast from 'primevue/toast';
 import { useAppState } from './state';
 
 const route = useRoute();
 const router = useRouter();
 const app = useAppState();
+const sidebarWidth = ref(68);
+const isResizing = ref(false);
 
-const currentUserModel = computed({
-  get: () => app.currentUserId.value,
-  set: (value: string) => {
-    app.currentUserId.value = value;
-    if (route.path === '/settings' && !app.hasFunctionPermission('system-settings', 'manage')) {
-      router.push('/demo');
-    }
-  }
-});
+const isPublicPage = computed(() => route.path === '/login');
+const isFullScreenPage = computed(() => route.path.includes('/preview'));
 
 const navItems = computed(() => [
   {
-    label: 'Demo',
+    label: '蓝图',
     icon: 'pi pi-th-large',
-    path: '/demo',
+    path: '/blueprints',
     visible: app.hasFunctionPermission('demo-preview', 'view')
   },
   {
@@ -35,18 +30,56 @@ const navItems = computed(() => [
     visible: app.hasFunctionPermission('system-settings', 'manage')
   }
 ]);
+
+function logout() {
+  app.logout();
+  router.push('/login');
+}
+
+function toggleSidebar() {
+  sidebarWidth.value = sidebarWidth.value > 100 ? 68 : 244;
+}
+
+function startSidebarResize(event: MouseEvent) {
+  isResizing.value = true;
+  document.body.style.cursor = 'col-resize';
+  document.body.style.userSelect = 'none';
+  window.addEventListener('mousemove', resizeSidebar);
+  window.addEventListener('mouseup', stopSidebarResize);
+  event.preventDefault();
+}
+
+function resizeSidebar(event: MouseEvent) {
+  if (!isResizing.value) return;
+  sidebarWidth.value = Math.min(280, Math.max(68, event.clientX));
+}
+
+function stopSidebarResize() {
+  isResizing.value = false;
+  document.body.style.cursor = '';
+  document.body.style.userSelect = '';
+  window.removeEventListener('mousemove', resizeSidebar);
+  window.removeEventListener('mouseup', stopSidebarResize);
+}
+
+onBeforeUnmount(stopSidebarResize);
 </script>
 
 <template>
   <Toast />
   <ConfirmDialog />
-  <div class="app-shell">
-    <aside class="side-nav">
+  <RouterView v-if="isPublicPage || isFullScreenPage" />
+  <div v-else class="app-shell">
+    <aside
+      class="side-nav"
+      :class="{ collapsed: sidebarWidth <= 100 }"
+      :style="{ width: `${sidebarWidth}px`, flexBasis: `${sidebarWidth}px` }"
+    >
       <div class="brand">
         <div class="brand-mark">有</div>
-        <div>
+        <div class="brand-copy">
           <strong>有招平台</strong>
-          <span>Demo Delivery</span>
+          <span>蓝图设计与展示</span>
         </div>
       </div>
 
@@ -60,27 +93,33 @@ const navItems = computed(() => [
           @click="router.push(item.path)"
         >
           <i :class="item.icon" />
-          <span>{{ item.label }}</span>
+          <span class="nav-label">{{ item.label }}</span>
         </button>
       </nav>
+      <Button
+        class="sidebar-toggle"
+        :icon="sidebarWidth > 100 ? 'pi pi-angle-left' : 'pi pi-angle-right'"
+        text
+        rounded
+        severity="secondary"
+        :aria-label="sidebarWidth > 100 ? '收起菜单' : '展开菜单'"
+        @click="toggleSidebar"
+      />
+      <div class="sidebar-resizer" @mousedown="startSidebarResize" />
     </aside>
 
     <main class="main-area">
       <header class="top-bar">
         <div>
-          <strong>{{ route.path === '/settings' ? '系统设置' : 'Demo 展示' }}</strong>
-          <span>纯前端 MVP，用于验证交互与权限边界</span>
+          <strong>{{ route.path === '/settings' ? '系统设置' : '蓝图展示' }}</strong>
         </div>
-        <div class="user-switcher">
+        <div v-if="app.currentUser.value" class="user-switcher">
           <Avatar icon="pi pi-user" shape="circle" />
-          <Select
-            v-model="currentUserModel"
-            :options="app.state.users"
-            optionLabel="displayName"
-            optionValue="id"
-            class="user-select"
-            aria-label="切换模拟用户"
-          />
+          <div class="user-meta">
+            <strong>{{ app.currentUser.value.displayName }}</strong>
+            <span>{{ app.currentUser.value.username }}</span>
+          </div>
+          <Button icon="pi pi-sign-out" text rounded severity="secondary" aria-label="退出登录" @click="logout" />
         </div>
       </header>
 

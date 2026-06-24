@@ -56,6 +56,22 @@ AppShell
 
 ## 4. PrimeVue 使用规则
 
+### 4.0 PrimeVue 生态参考规则
+
+实现页面前必须优先参考 PrimeVue 官方生态，而不是只使用零散组件：
+
+- 基础组件用法参考 PrimeVue Components 文档。
+- 页面区块组合优先参考 PrimeBlocks 的后台、列表、卡片、表单、设置页模式。
+- 完整后台布局可参考 PrimeVue Templates 的导航、工具栏、内容区密度和状态处理。
+- 视觉稿和 token 命名优先参考 PrimeVue Figma UI Kit 与 Styled Mode token。
+- 自研页面不得脱离 PrimeVue 的交互习惯另起一套控件语言。
+
+约束：
+
+- 业务页面不得直接堆叠大量 PrimeVue 原子组件，必须经过平台基础组件或页面母版组织。
+- 如 PrimeVue 官方示例已有成熟模式，应优先复用其布局思想，再做业务适配。
+- 不允许用 PrimeVue 默认 `Card` 样式直接大量铺页面；资源卡、设置面板、列表容器应封装为平台自己的视觉组件。
+
 ### 4.1 组件优先级
 
 常规 UI 必须优先使用 PrimeVue 组件：
@@ -172,6 +188,90 @@ app.use(PrimeVue, {
 - 字体大小不随视口宽度缩放。
 - 字间距保持 `0`。
 - 所有固定格式区域必须有稳定尺寸或响应式约束。
+
+### 5.1 设计风格基线
+
+有招平台工作台的默认风格是企业级 SaaS 交付平台：
+
+- 克制、清晰、可扫描。
+- 信息密度中高，首屏优先展示可操作内容。
+- 页面气质接近成熟后台产品，不做营销页、官网页、炫酷大屏页。
+- 强调资产管理、版本管理、授权管理的秩序感。
+- 主色只用于当前选中态和主要动作，危险色只用于删除、撤销等高风险动作。
+
+### 5.2 Design Tokens
+
+业务 CSS 必须优先使用平台 token，禁止在页面内随意新增颜色、阴影、圆角和间距。
+
+基础 token 建议：
+
+```css
+:root {
+  --app-bg: #f6f8fb;
+  --app-panel: #ffffff;
+  --app-panel-muted: #f8fafc;
+  --app-border: #e2e8f0;
+  --app-border-soft: #edf2f7;
+  --app-text: #111827;
+  --app-muted: #64748b;
+  --app-subtle: #94a3b8;
+  --app-primary: #2563eb;
+  --app-primary-weak: #eff6ff;
+  --app-success: #16a34a;
+  --app-warning: #d97706;
+  --app-danger: #dc2626;
+  --app-radius: 8px;
+  --app-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+}
+```
+
+字号约束：
+
+| 层级 | 用途 | 字号 |
+| --- | --- | --- |
+| Page title | 页面标题 | 22px |
+| Section title | 区块标题 | 16px |
+| Body | 正文、表格 | 14px |
+| Meta | 辅助信息 | 12px / 13px |
+
+间距约束：
+
+- 页面外边距：24px。
+- 区块间距：16px / 20px。
+- 卡片内边距：16px。
+- 表单字段间距：14px。
+- 按钮组间距：8px。
+
+### 5.3 页面母版
+
+后续页面必须优先套用母版：
+
+- 工作台母版：`AppShell + TopBar + SideNav + ContentRegion`。
+- 卡片分组页母版：`PageHeader + Toolbar + GroupSection + ResourceCardGrid`。
+- 表格列表页母版：`PageHeader + Toolbar + DataTable`。
+- 权限配置页母版：`UserPicker + PermissionPanel + StickyActions`。
+- 弹窗表单母版：`Dialog + FormField + FooterActions`。
+
+页面母版要求：
+
+- 页面头部不超过 72px。
+- 一个页面最多一个主按钮。
+- 管理类次要动作使用 `outlined` 或 `text`。
+- 高风险动作使用 `severity="danger"`，并必须二次确认。
+- 空状态、无权限状态必须使用统一视觉。
+
+### 5.4 负面清单
+
+禁止出现以下模式：
+
+- 页面像 PrimeVue 默认组件示例的简单拼接。
+- 大量默认 `Card` 堆叠形成粗糙后台模板感。
+- 所有按钮都使用主色。
+- 每个区块都有重阴影。
+- 标题过大、留白过大，导致首屏信息过少。
+- 卡片高度不齐、文本撑破、标签换行失控。
+- 表格和表单没有清晰的操作层级。
+- 页面内出现无业务价值的装饰文案。
 
 ## 6. 布局规则
 

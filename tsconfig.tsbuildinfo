@@ -1,1 +1,1 @@
-{"root":["./src/env.d.ts","./src/main.ts","./src/mockdata.ts","./src/router.ts","./src/state.ts","./src/types.ts","./src/app.vue","./src/pages/demopage.vue","./src/pages/settingspage.vue"],"version":"5.9.3"}
+{"root":["./src/env.d.ts","./src/main.ts","./src/mockdata.ts","./src/router.ts","./src/state.ts","./src/types.ts","./src/app.vue","./src/pages/blueprintpreviewpage.vue","./src/pages/demopage.vue","./src/pages/forbiddenpage.vue","./src/pages/loginpage.vue","./src/pages/settingspage.vue"],"version":"5.9.3"}

@@ -3,6 +3,7 @@ export type PermissionLevel = 'view' | 'manage';
 export type DemoPermissionTarget = 'group' | 'demo';
 export type UserStatus = 'enabled' | 'disabled';
 export type VersionStatus = 'available' | 'unavailable';
+export type McpTokenStatus = 'enabled' | 'disabled';
 
 export interface DemoVersion {
   id: string;
@@ -10,6 +11,8 @@ export interface DemoVersion {
   version: string;
   isLatest: boolean;
   previewUrl: string;
+  artifactUrl: string;
+  markdown: string;
   status: VersionStatus;
   deployedAt: string;
 }
@@ -51,5 +54,16 @@ export interface User {
   email: string;
   phone: string;
   status: UserStatus;
+  createdAt: string;
+}
+
+export interface McpToken {
+  id: string;
+  name: string;
+  boundUserId: string;
+  status: McpTokenStatus;
+  tokenPreview: string;
+  expiresAt: string;
+  lastUsedAt: string;
   createdAt: string;
 }
