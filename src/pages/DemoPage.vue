@@ -126,9 +126,9 @@ function openDemo(demo: Demo) {
   window.open(version.previewUrl, '_blank', 'noopener,noreferrer');
 }
 
-function createGroup() {
+async function createGroup() {
   try {
-    app.createGroup(newGroupName.value);
+    await app.createGroup(newGroupName.value);
     newGroupName.value = '';
     groupDialogVisible.value = false;
     toast.add({ severity: 'success', summary: '分组已创建', life: 2200 });
@@ -150,15 +150,33 @@ function confirmDeleteGroup(groupId: string) {
     rejectLabel: '取消',
     acceptLabel: '删除',
     acceptClass: 'p-button-danger',
-    accept: () => {
+    accept: async () => {
       try {
-        app.deleteGroup(groupId);
+        await app.deleteGroup(groupId);
         toast.add({ severity: 'success', summary: '分组已删除', life: 2200 });
       } catch (error) {
         toast.add({ severity: 'error', summary: '删除失败', detail: (error as Error).message, life: 2800 });
       }
     }
   });
+}
+
+async function moveGroup(groupId: string, direction: -1 | 1) {
+  const currentGroups = app.visibleGroups.value;
+  const currentIndex = currentGroups.findIndex((group) => group.id === groupId);
+  const nextIndex = currentIndex + direction;
+  if (currentIndex < 0 || nextIndex < 0 || nextIndex >= currentGroups.length) return;
+
+  const nextGroups = [...currentGroups];
+  const [target] = nextGroups.splice(currentIndex, 1);
+  nextGroups.splice(nextIndex, 0, target);
+
+  try {
+    await app.reorderGroups(nextGroups.map((group) => group.id));
+    toast.add({ severity: 'success', summary: '分组顺序已更新', life: 1800 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '排序失败', detail: (error as Error).message, life: 2800 });
+  }
 }
 
 function openContextMenu(event: MouseEvent, demo: Demo) {
@@ -297,6 +315,26 @@ async function onDrop(groupId: string) {
             v-tooltip.top="'删除分组'"
             @click="confirmDeleteGroup(group.id)"
           />
+          <div v-if="canManageDemo && !queryForm.keyword.trim() && !queryForm.groupId" class="group-order-actions">
+            <Button
+              icon="pi pi-arrow-up"
+              text
+              severity="secondary"
+              aria-label="上移分组"
+              v-tooltip.top="'上移分组'"
+              :disabled="group.isDefault || app.visibleGroups.value.findIndex((item) => item.id === group.id) === 0"
+              @click="moveGroup(group.id, -1)"
+            />
+            <Button
+              icon="pi pi-arrow-down"
+              text
+              severity="secondary"
+              aria-label="下移分组"
+              v-tooltip.top="'下移分组'"
+              :disabled="group.isDefault || app.visibleGroups.value.findIndex((item) => item.id === group.id) === app.visibleGroups.value.length - 1"
+              @click="moveGroup(group.id, 1)"
+            />
+          </div>
         </div>
 
         <div v-if="demos.length === 0" class="group-empty">暂无蓝图，拖动卡片到此分组</div>
@@ -449,6 +487,13 @@ async function onDrop(groupId: string) {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 12px;
+}
+
+.group-order-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
 }
 
 .group-header h2 {

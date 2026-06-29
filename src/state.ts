@@ -2,7 +2,9 @@ import { computed, reactive, ref } from 'vue';
 import {
   type AdminSnapshot,
   clearAuthToken,
+  createBlueprintGroupApi,
   createUserApi,
+  deleteBlueprintGroupApi,
   deleteUserApi,
   getAuthToken,
   getAdminUsersApi,
@@ -12,6 +14,7 @@ import {
   getBlueprintsApi,
   getMeApi,
   loginApi,
+  reorderBlueprintGroupsApi,
   resetUserPasswordApi,
   setAuthToken,
   toDemo,
@@ -136,7 +139,7 @@ export function useAppState() {
       return [...state.groups].sort((a, b) => {
         if (a.isDefault) return -1;
         if (b.isDefault) return 1;
-        return a.createdAt.localeCompare(b.createdAt);
+        return a.order - b.order || a.createdAt.localeCompare(b.createdAt);
       });
     }
 
@@ -152,7 +155,7 @@ export function useAppState() {
       .sort((a, b) => {
         if (a.isDefault) return -1;
         if (b.isDefault) return 1;
-        return a.createdAt.localeCompare(b.createdAt);
+        return a.order - b.order || a.createdAt.localeCompare(b.createdAt);
       });
   });
 
@@ -210,23 +213,40 @@ export function useAppState() {
     return artifact.content;
   }
 
-  function createGroup(name: string) {
+  function applyGroupResponse(response: { items: Array<DemoGroup & { blueprintCount?: number }> }) {
+    state.groups = response.items.map(({ blueprintCount, ...group }) => group);
+  }
+
+  async function createGroup(name: string) {
     const trimmed = name.trim();
     if (!trimmed) throw new Error('分组名称不能为空');
     if (state.groups.some((group) => group.name === trimmed)) throw new Error('分组名称已存在');
+
+    if (getAuthToken()) {
+      applyGroupResponse(await createBlueprintGroupApi(trimmed));
+      return;
+    }
 
     state.groups.push({
       id: `group_${Date.now()}`,
       name: trimmed,
       isDefault: false,
+      order: Math.max(...state.groups.map((group) => group.order), 0) + 10,
       createdAt: new Date().toLocaleString('zh-CN', { hour12: false })
     });
   }
 
-  function deleteGroup(groupId: string) {
+  async function deleteGroup(groupId: string) {
     const group = state.groups.find((item) => item.id === groupId);
     if (!group) throw new Error('分组不存在');
     if (group.isDefault) throw new Error('默认分组不可删除');
+
+    if (getAuthToken()) {
+      const response = await deleteBlueprintGroupApi(groupId);
+      applyGroupResponse(response.groups);
+      await refreshBlueprints();
+      return;
+    }
 
     state.demos.forEach((demo) => {
       if (demo.groupId === groupId) {
@@ -238,6 +258,17 @@ export function useAppState() {
       (permission) => !(permission.targetType === 'group' && permission.targetId === groupId)
     );
     state.groups = state.groups.filter((item) => item.id !== groupId);
+  }
+
+  async function reorderGroups(groupIds: string[]) {
+    if (getAuthToken()) {
+      applyGroupResponse(await reorderBlueprintGroupsApi(groupIds));
+      return;
+    }
+    groupIds.forEach((groupId, index) => {
+      const group = state.groups.find((item) => item.id === groupId);
+      if (group) group.order = index * 10;
+    });
   }
 
   async function updateDemo(demoId: string, patch: Partial<Pick<Demo, 'name' | 'summary' | 'tags' | 'groupId'>>) {
@@ -434,6 +465,7 @@ export function useAppState() {
     getUserVisibleDemoIds,
     createGroup,
     deleteGroup,
+    reorderGroups,
     updateDemo,
     createUser,
     updateUser,

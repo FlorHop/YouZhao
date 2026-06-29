@@ -39,9 +39,9 @@ export const authCredentialsSeed: Record<string, string> = {
 };
 
 export const groupsSeed: DemoGroup[] = [
-  { id: defaultGroupId, name: '默认', isDefault: true, createdAt: '2026-06-12 09:00' },
-  { id: 'group_city', name: '城市治理', isDefault: false, createdAt: '2026-06-12 09:10' },
-  { id: 'group_invest', name: '招商引资', isDefault: false, createdAt: '2026-06-12 09:20' }
+  { id: defaultGroupId, name: '默认', isDefault: true, order: 0, createdAt: '2026-06-12 09:00' },
+  { id: 'group_city', name: '城市治理', isDefault: false, order: 10, createdAt: '2026-06-12 09:10' },
+  { id: 'group_invest', name: '招商引资', isDefault: false, order: 20, createdAt: '2026-06-12 09:20' }
 ];
 
 export const demosSeed: Demo[] = [

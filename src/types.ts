@@ -21,6 +21,7 @@ export interface DemoGroup {
   id: string;
   name: string;
   isDefault: boolean;
+  order: number;
   createdAt: string;
 }
 

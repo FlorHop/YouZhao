@@ -107,6 +107,27 @@ export async function getBlueprintGroupsApi() {
   return request<BlueprintGroupResponse>('/api/blueprint-groups?includeEmpty=true');
 }
 
+export async function createBlueprintGroupApi(name: string) {
+  return request<BlueprintGroupResponse>('/api/blueprint-groups', {
+    method: 'POST',
+    body: JSON.stringify({ name })
+  });
+}
+
+export async function deleteBlueprintGroupApi(groupId: string) {
+  return request<{ groups: BlueprintGroupResponse; blueprints: { items: BlueprintListItem[]; total: number } }>(
+    `/api/blueprint-groups/${encodeURIComponent(groupId)}`,
+    { method: 'DELETE' }
+  );
+}
+
+export async function reorderBlueprintGroupsApi(groupIds: string[]) {
+  return request<BlueprintGroupResponse>('/api/blueprint-groups/reorder', {
+    method: 'PATCH',
+    body: JSON.stringify({ groupIds })
+  });
+}
+
 export async function getBlueprintsApi() {
   return request<{ items: BlueprintListItem[]; total: number }>('/api/blueprints?limit=100');
 }

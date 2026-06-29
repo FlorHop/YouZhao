@@ -53,9 +53,9 @@ const credentials = new Map([
 ]);
 
 const groups = [
-  { id: defaultGroupId, name: '默认', isDefault: true, createdAt: '2026-06-12 09:00' },
-  { id: 'group_city', name: '城市治理', isDefault: false, createdAt: '2026-06-12 09:10' },
-  { id: 'group_invest', name: '招商引资', isDefault: false, createdAt: '2026-06-12 09:20' }
+  { id: defaultGroupId, name: '默认', isDefault: true, order: 0, createdAt: '2026-06-12 09:00' },
+  { id: 'group_city', name: '城市治理', isDefault: false, order: 10, createdAt: '2026-06-12 09:10' },
+  { id: 'group_invest', name: '招商引资', isDefault: false, order: 20, createdAt: '2026-06-12 09:20' }
 ];
 
 const blueprints = [
@@ -225,6 +225,14 @@ function publicVersion(version) {
   };
 }
 
+function sortGroups(items) {
+  return [...items].sort((a, b) => {
+    if (a.isDefault) return -1;
+    if (b.isDefault) return 1;
+    return a.order - b.order || String(a.createdAt).localeCompare(String(b.createdAt));
+  });
+}
+
 function getUserPermissions(userId) {
   return functionPermissions.filter((permission) => permission.userId === userId);
 }
@@ -262,10 +270,10 @@ function accessibleGroups(userId, includeEmpty = true) {
       .map((permission) => permission.targetId)
   );
   const blueprintGroupIds = new Set(accessibleBlueprints(userId).map((blueprint) => blueprint.groupId));
-  return groups.filter((group) => {
+  return sortGroups(groups.filter((group) => {
     if (allowedGroupIds.has(group.id)) return includeEmpty || blueprintGroupIds.has(group.id);
     return blueprintGroupIds.has(group.id);
-  });
+  }));
 }
 
 function authenticateSession(req) {
@@ -863,6 +871,77 @@ async function route(req, res) {
       keyword: url.searchParams.get('keyword') ?? undefined,
       includeEmpty
     }));
+  }
+
+  if (req.method === 'POST' && pathname === '/api/blueprint-groups') {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireBlueprintManage(session.user);
+    const body = await parseJson(req);
+    const name = validateText(body.name, 'name', { required: true, max: 40 });
+    if (groups.some((group) => group.name === name)) throw apiError(409, 'GROUP_CONFLICT', '分组名称已存在');
+    const group = {
+      id: `group_${randomUUID().slice(0, 8)}`,
+      name,
+      isDefault: false,
+      order: Math.max(...groups.map((item) => item.order), 0) + 10,
+      createdAt: nowIso()
+    };
+    groups.push(group);
+    blueprintPermissions.push({ userId: session.user.id, targetType: 'group', targetId: group.id });
+    return sendJson(res, 201, listBlueprintGroups({ token: { scopes: ['read:blueprint'] }, user: session.user }, {
+      includeEmpty: true
+    }));
+  }
+
+  if (req.method === 'PATCH' && pathname === '/api/blueprint-groups/reorder') {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireBlueprintManage(session.user);
+    const body = await parseJson(req);
+    if (!Array.isArray(body.groupIds)) throw apiError(400, 'INVALID_ARGUMENT', 'groupIds 必须是数组');
+    const knownGroupIds = new Set(groups.map((group) => group.id));
+    if (body.groupIds.some((groupId) => typeof groupId !== 'string' || !knownGroupIds.has(groupId))) {
+      throw apiError(400, 'INVALID_ARGUMENT', 'groupIds 包含不存在的分组');
+    }
+    const orderedIds = [defaultGroupId, ...body.groupIds.filter((groupId) => groupId !== defaultGroupId)];
+    groups.forEach((group) => {
+      const index = orderedIds.indexOf(group.id);
+      group.order = (index >= 0 ? index : orderedIds.length) * 10;
+    });
+    return sendJson(res, 200, listBlueprintGroups({ token: { scopes: ['read:blueprint'] }, user: session.user }, {
+      includeEmpty: true
+    }));
+  }
+
+  const groupMatch = pathname.match(/^\/api\/blueprint-groups\/([^/]+)$/);
+  if (req.method === 'DELETE' && groupMatch) {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireBlueprintManage(session.user);
+    const groupId = decodeURIComponent(groupMatch[1]);
+    const group = groups.find((item) => item.id === groupId);
+    if (!group) throw apiError(404, 'GROUP_NOT_FOUND', '分组不存在');
+    if (group.isDefault) throw apiError(400, 'INVALID_ARGUMENT', '默认分组不可删除');
+
+    blueprints.forEach((blueprint) => {
+      if (blueprint.groupId === groupId) {
+        blueprint.groupId = defaultGroupId;
+        blueprint.updatedAt = nowIso();
+      }
+    });
+    for (let i = blueprintPermissions.length - 1; i >= 0; i -= 1) {
+      if (blueprintPermissions[i].targetType === 'group' && blueprintPermissions[i].targetId === groupId) {
+        blueprintPermissions.splice(i, 1);
+      }
+    }
+    const groupIndex = groups.findIndex((item) => item.id === groupId);
+    groups.splice(groupIndex, 1);
+
+    return sendJson(res, 200, {
+      groups: listBlueprintGroups({ token: { scopes: ['read:blueprint'] }, user: session.user }, { includeEmpty: true }),
+      blueprints: listBlueprints({ token: { scopes: ['read:blueprint'] }, user: session.user }, { limit: 100, offset: 0 })
+    });
   }
 
   if (req.method === 'GET' && pathname === '/api/blueprints') {
