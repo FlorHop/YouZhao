@@ -4,7 +4,7 @@ This reference covers blueprint MCP tools only. It does not cover platform deplo
 
 ## Authentication
 
-The MCP server reads authentication from environment variables:
+The MCP server binds an existing platform Token through environment variables:
 
 ```bash
 YOUZHAO_API_BASE=http://127.0.0.1:4174
@@ -16,6 +16,14 @@ The MCP Token must already exist. Final blueprint capability is:
 ```text
 bound user blueprint permission ∩ token scope
 ```
+
+Token binding checklist:
+
+- Use an existing Token from YouZhao Token management.
+- Bind it in the MCP Client config as `YOUZHAO_MCP_TOKEN`.
+- Use a Token with `read:blueprint` for read tools.
+- Use a Token with `publish:blueprint` and a bound user with blueprint manage permission for publish.
+- Keep production Tokens out of Git-tracked files.
 
 ## MCP Server
 

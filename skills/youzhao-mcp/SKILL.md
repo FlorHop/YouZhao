@@ -25,9 +25,22 @@ This skill does not cover:
 - Nginx, systemd, Docker, database, or backup operations.
 - User, permission, or Token management UI work.
 
-## MCP Server Install
+## MCP Client Initialization And Token Binding
 
-In an MCP client, register a stdio server:
+Token binding means putting an existing YouZhao MCP Token into the MCP Client server configuration. It does not mean creating or managing platform Tokens.
+
+Steps:
+
+1. Get an existing MCP Token from the YouZhao platform owner.
+2. Confirm the YouZhao API base URL.
+3. Register `server/mcp-server.mjs` as a stdio MCP server.
+4. Put the Token in `YOUZHAO_MCP_TOKEN`.
+5. Restart or reload the MCP Client.
+6. Verify with `tools/list` or the smoke test.
+
+Use this as the initialization entry when a user says they need to bind a Token: guide them to add or update the MCP Client's `youzhao` server entry, then paste the existing Token into `env.YOUZHAO_MCP_TOKEN`.
+
+In an MCP Client, register a stdio server:
 
 ```json
 {
@@ -44,7 +57,16 @@ In an MCP client, register a stdio server:
 }
 ```
 
-Use an absolute path for `server/mcp-server.mjs`. The YouZhao backend API must be reachable at `YOUZHAO_API_BASE`.
+Use an absolute path for `server/mcp-server.mjs`. The YouZhao backend API must be reachable at `YOUZHAO_API_BASE`. The specific config file location depends on the MCP Client; this skill only defines the server entry content and required environment variables.
+
+Configuration checklist:
+
+- `command` is `node`.
+- `args[0]` is the absolute path to `server/mcp-server.mjs`.
+- `YOUZHAO_API_BASE` points to the running YouZhao backend.
+- `YOUZHAO_MCP_TOKEN` is the existing platform Token to bind.
+- Do not hard-code production Tokens in files that will be committed.
+- Prefer client-local secrets or environment injection when the MCP Client supports it.
 
 ## Inputs To Confirm
 
