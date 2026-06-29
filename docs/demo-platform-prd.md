@@ -1,8 +1,8 @@
-# 有招平台蓝图展示功能 PRD
+# 有招蓝图展示功能 PRD
 
 ## 1. 文档信息
 
-- 产品名称：有招平台
+- 产品名称：有招
 - 模块范围：蓝图展示、系统设置、用户管理、权限管理、MCP 服务
 - 文档版本：v0.1
 - 当前阶段：MVP 功能设计
@@ -16,7 +16,7 @@
 
 ## 2. 背景与目标
 
-有招平台需要先从“已部署蓝图的展示、授权、预览”开始实践 MVP。平台面向内部交付、售前、业务演示等场景，用户可以在统一入口查看已部署蓝图，并按权限打开对应版本的蓝图。
+有招需要先从“已部署蓝图的展示、授权、预览”开始实践 MVP。平台面向内部交付、售前、业务演示等场景，用户可以在统一入口查看已部署蓝图，并按权限打开对应版本的蓝图。
 
 本阶段目标：
 
@@ -84,7 +84,7 @@
 ## 5. 信息架构
 
 ```text
-有招平台
+有招
 ├─蓝图
 │  ├─ 分组列表
 │  ├─蓝图卡片列表
@@ -418,13 +418,13 @@ User
 
 ### 9.4 MCP 服务权限
 
-MCP 服务面向 Agent 接入有招平台，用于读取和发布蓝图。MCP 服务不绕过平台权限模型。
+MCP 服务面向 Agent 接入有招，用于读取和发布蓝图。MCP 服务不绕过平台权限模型。
 
 接入主体：
 
 | 主体 | 说明 |
 | --- | --- |
-| Agent | 通过 MCP 客户端接入有招平台的外部或内部智能体。 |
+| Agent | 通过 MCP 客户端接入有招的外部或内部智能体。 |
 | MCP Token | 分配给 Agent 的访问凭证。 |
 | 绑定用户 | MCP Token 必须绑定平台用户，权限按绑定用户计算。 |
 
@@ -449,15 +449,30 @@ MCP Token 建议字段：
 | Token 名称 | 便于识别 Agent 来源 |
 | 绑定用户 | 权限计算使用的用户 |
 | 状态 | 启用、停用 |
+| Token Scope | 控制 Token 可调用的能力范围 |
 | 过期时间 | 可选，过期后不可使用 |
 | 最近使用时间 | 用于审计 |
 | 创建时间 | Token 创建时间 |
+
+Token Scope：
+
+| Scope | 说明 |
+| --- | --- |
+| `read:blueprint` | 允许读取可授权范围内的蓝图、分组和版本产物。 |
+| `publish:blueprint` | 允许发布蓝图新版本。 |
+
+权限计算规则：
+
+- MCP Token 的最终能力 = 绑定用户权限 ∩ Token Scope。
+- 绑定用户具备蓝图预览管理权限，但 Token 只有 `read:blueprint` 时，Agent 不可发布。
+- Token 具备 `publish:blueprint`，但绑定用户不具备蓝图预览管理权限时，Agent 不可发布。
+- Token Scope 变更后立即生效，已停用或过期 Token 不再具备任何能力。
 
 ## 10. MCP 服务
 
 ### 10.1 目标
 
-MCP 服务用于让 Agent 以标准工具协议接入有招平台，完成两个核心动作：
+MCP 服务用于让 Agent 以标准工具协议接入有招，完成两个核心动作：
 
 - 获取蓝图：读取蓝图元数据、HTML 产物和 Markdown 说明。
 - 发布蓝图：提交 Agent 生成的 HTML 与 Markdown，登记为新的蓝图版本并返回预览地址。
@@ -479,11 +494,58 @@ MVP 阶段提供以下 MCP tools：
 | Tool | 用途 | 权限要求 |
 | --- | --- | --- |
 | `youzhao.list_blueprints` | 查询可访问蓝图列表 | 蓝图预览查看或管理 |
+| `youzhao.list_blueprint_groups` | 查询可访问蓝图分组 | 蓝图预览查看或管理 |
 | `youzhao.get_blueprint` | 获取蓝图元数据 | 蓝图预览查看或管理 + 蓝图授权 |
 | `youzhao.get_blueprint_artifact` | 获取指定版本产物 | 蓝图预览查看或管理 + 蓝图授权 |
 | `youzhao.publish_blueprint` | 发布蓝图新版本 | 蓝图预览管理 |
 
-### 10.4 `youzhao.list_blueprints`
+工具通用约束：
+
+- 所有工具调用必须携带 MCP Token。
+- 所有读取类工具要求 Token 具备 `read:blueprint` scope。
+- 发布类工具要求 Token 具备 `publish:blueprint` scope。
+- 请求字段必须使用明确枚举和长度限制，未知字段允许忽略但不得影响权限判断。
+- 单次 MCP 请求体默认上限 5 MB；超过上限返回 `PAYLOAD_TOO_LARGE`。
+- 返回值不得包含 Token 明文、密码哈希、服务端绝对路径等敏感信息。
+
+### 10.4 `youzhao.list_blueprint_groups`
+
+用途：Agent 查询当前 Token 可访问的蓝图分组。空分组也应返回，便于 Agent 选择发布目标。
+
+请求参数：
+
+```json
+{
+  "keyword": "招商",
+  "includeEmpty": true
+}
+```
+
+参数说明：
+
+| 字段 | 必填 | 说明 |
+| --- | --- | --- |
+| `keyword` | 否 | 按分组名称搜索，最大 50 字符 |
+| `includeEmpty` | 否 | 是否返回空分组，默认 true |
+
+返回结果：
+
+```json
+{
+  "items": [
+    {
+      "id": "group_default",
+      "name": "默认",
+      "isDefault": true,
+      "blueprintCount": 3,
+      "createdAt": "2026-06-12T00:00:00+08:00"
+    }
+  ],
+  "total": 1
+}
+```
+
+### 10.5 `youzhao.list_blueprints`
 
 用途：Agent 查询当前 Token 可访问的蓝图列表。
 
@@ -528,7 +590,14 @@ MVP 阶段提供以下 MCP tools：
 }
 ```
 
-### 10.5 `youzhao.get_blueprint`
+字段约束：
+
+- `keyword` 最大 50 字符。
+- `tag` 最大 24 字符。
+- `limit` 取值范围 1-100，默认 20。
+- `offset` 必须大于等于 0。
+
+### 10.6 `youzhao.get_blueprint`
 
 用途：Agent 获取单个蓝图元数据和版本列表。
 
@@ -564,7 +633,7 @@ MVP 阶段提供以下 MCP tools：
 }
 ```
 
-### 10.6 `youzhao.get_blueprint_artifact`
+### 10.7 `youzhao.get_blueprint_artifact`
 
 用途：Agent 获取指定蓝图版本的 HTML 或 Markdown 产物。
 
@@ -612,7 +681,7 @@ Markdown 返回：
 }
 ```
 
-### 10.7 `youzhao.publish_blueprint`
+### 10.8 `youzhao.publish_blueprint`
 
 用途：Agent 发布新的蓝图版本。平台保存 HTML 与 Markdown 产物，创建版本记录并返回预览地址。
 
@@ -628,7 +697,8 @@ Markdown 返回：
   "version": "v1.1.0",
   "html": "<!doctype html><html>...</html>",
   "markdown": "# 招商驾驶舱\n\n## 页面说明\n...",
-  "publishNote": "优化项目进度模块与指标说明。"
+  "publishNote": "优化项目进度模块与指标说明。",
+  "idempotencyKey": "agent-job-20260624-001"
 }
 ```
 
@@ -645,6 +715,7 @@ Markdown 返回：
 | `html` | 是 | 可预览 HTML 产物 |
 | `markdown` | 是 | 蓝图说明文档 |
 | `publishNote` | 否 | 发布说明 |
+| `idempotencyKey` | 否 | 幂等键，同一发布任务重复提交时使用 |
 
 返回结果：
 
@@ -666,6 +737,8 @@ Markdown 返回：
 发布规则：
 
 - `version` 在同一蓝图下必须唯一。
+- 同一 `idempotencyKey` 重复提交时，应返回首次发布结果，不重复创建版本。
+- 同一蓝图下已存在相同 `version`，且不是同一 `idempotencyKey`，返回 `VERSION_CONFLICT`。
 - 发布成功后，新版本自动成为最新版本。
 - 旧版本不删除，可继续通过版本下拉访问。
 - 若 `blueprintId` 不存在，返回错误。
@@ -674,7 +747,47 @@ Markdown 返回：
 - Markdown 产物用于 Agent 读取、人工评审和蓝图说明展示。
 - 发布失败不得产生半完成版本记录。
 
-### 10.8 MCP 错误码
+产物校验规则：
+
+- HTML 必须非空，并包含 `<!doctype html>` 或 `<html`。
+- Markdown 必须非空。
+- HTML 默认大小上限 2 MB。
+- Markdown 默认大小上限 512 KB。
+- HTML 允许内联 CSS 与 JS；外链脚本、字体、图片和接口调用在单机生产版中需走平台允许的白名单域名。
+- 服务端保存前必须计算 HTML 与 Markdown 的 SHA-256 哈希。
+
+版本状态：
+
+| 状态 | 说明 |
+| --- | --- |
+| `draft` | 已创建但未对用户开放。 |
+| `available` | 可预览、可读取。 |
+| `disabled` | 已停用，不在默认版本列表中展示。 |
+| `failed` | 发布失败或产物不可用，仅用于审计和排障。 |
+
+产物存储清单：
+
+```text
+/data/youzhao/previews/{blueprintId}/{version}/index.html
+/data/youzhao/previews/{blueprintId}/{version}/blueprint.md
+/data/youzhao/previews/{blueprintId}/{version}/manifest.json
+```
+
+`manifest.json` 至少包含：
+
+```json
+{
+  "blueprintId": "blueprint_001",
+  "version": "v1.1.0",
+  "htmlHash": "sha256:example",
+  "markdownHash": "sha256:example",
+  "htmlSize": 102400,
+  "markdownSize": 2048,
+  "publishedAt": "2026-06-12T00:00:00+08:00"
+}
+```
+
+### 10.9 MCP 错误码
 
 | 错误码 | 说明 |
 | --- | --- |
@@ -686,20 +799,29 @@ Markdown 返回：
 | `INVALID_ARTIFACT` | HTML 或 Markdown 产物无效 |
 | `PAYLOAD_TOO_LARGE` | 请求体超过大小限制 |
 | `PUBLISH_FAILED` | 发布失败 |
+| `INVALID_ARGUMENT` | 请求参数不符合字段约束 |
+| `SCOPE_DENIED` | Token Scope 不允许调用该工具 |
+| `GROUP_NOT_FOUND` | 分组不存在或不可访问 |
 
-### 10.9 MCP 审计日志
+### 10.10 MCP 审计日志
 
 每次 MCP 调用必须记录：
 
 - 调用时间。
+- Request ID。
 - Token ID。
 - 绑定用户。
 - Tool 名称。
 - 请求参数摘要。
+- `idempotencyKey`。
 - 操作对象。
 - 操作结果。
 - 错误码。
 - 客户端标识。
+- 客户端 IP。
+- 调用耗时。
+- 产物大小。
+- 产物哈希。
 
 敏感内容处理：
 
@@ -761,6 +883,7 @@ Markdown 返回：
   "isLatest": true,
   "previewUrl": "https://example.com/demo/demo_001/v1.0.0",
   "status": "available",
+  "storageBasePath": "/data/youzhao/previews/blueprint_001/v1.0.0",
   "artifacts": ["html", "markdown"],
   "publishSource": "mcp",
   "publishNote": "首版发布",
@@ -829,6 +952,7 @@ Markdown 返回：
   "id": "mcp_token_001",
   "name": "Codex Agent",
   "boundUserId": "user_001",
+  "scopes": ["read:blueprint", "publish:blueprint"],
   "status": "enabled",
   "expiresAt": "2026-12-31T23:59:59+08:00",
   "lastUsedAt": "2026-06-12T00:00:00+08:00",
@@ -859,8 +983,15 @@ Markdown 返回：
   "tokenId": "mcp_token_001",
   "boundUserId": "user_001",
   "tool": "youzhao.publish_blueprint",
+  "requestId": "req_001",
+  "idempotencyKey": "agent-job-20260624-001",
   "targetType": "blueprint",
   "targetId": "blueprint_001",
+  "htmlHash": "sha256:example",
+  "markdownHash": "sha256:example",
+  "htmlSize": 102400,
+  "markdownSize": 2048,
+  "durationMs": 320,
   "result": "success",
   "errorCode": null,
   "createdAt": "2026-06-12T00:00:00+08:00"

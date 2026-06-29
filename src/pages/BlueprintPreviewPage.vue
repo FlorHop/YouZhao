@@ -13,10 +13,30 @@ const drawerVisible = ref(false);
 const collapsed = ref(false);
 const drawerWidth = ref(Math.round(window.innerWidth * 0.5));
 const isResizingDrawer = ref(false);
+const loading = ref(false);
+const errorMessage = ref('');
 
 const blueprint = computed(() => app.state.demos.find((demo) => demo.id === route.params.id));
 const availableVersions = computed(() => blueprint.value?.versions.filter((version) => version.status === 'available') ?? []);
 const selectedVersionId = ref('');
+const markdownContent = ref('');
+
+watch(
+  () => route.params.id,
+  async (id) => {
+    if (!id) return;
+    loading.value = true;
+    errorMessage.value = '';
+    try {
+      await app.loadBlueprintDetail(String(id));
+    } catch (error) {
+      errorMessage.value = (error as Error).message;
+    } finally {
+      loading.value = false;
+    }
+  },
+  { immediate: true }
+);
 
 watch(
   blueprint,
@@ -31,6 +51,20 @@ watch(
 
 const selectedVersion = computed(() =>
   blueprint.value?.versions.find((version) => version.id === selectedVersionId.value)
+);
+
+watch(
+  selectedVersion,
+  async (version) => {
+    markdownContent.value = version?.markdown ?? '';
+    if (!blueprint.value || !version) return;
+    try {
+      markdownContent.value = await app.loadBlueprintMarkdown(blueprint.value.id, version.version);
+    } catch (error) {
+      markdownContent.value = (error as Error).message;
+    }
+  },
+  { immediate: true }
 );
 
 function changeVersion(versionId: string) {
@@ -124,12 +158,12 @@ onBeforeUnmount(stopDrawerResize);
     >
       <div class="drawer-resizer" @mousedown="startDrawerResize" />
       <article class="markdown-content">
-        <pre>{{ selectedVersion.markdown }}</pre>
+        <pre>{{ markdownContent }}</pre>
       </article>
     </Drawer>
   </main>
 
-  <div v-else class="denied-state">蓝图或版本不存在</div>
+  <div v-else class="denied-state">{{ loading ? '蓝图加载中' : errorMessage || '蓝图或版本不存在' }}</div>
 </template>
 
 <style scoped>

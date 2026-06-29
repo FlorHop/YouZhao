@@ -29,12 +29,12 @@ function fillAccount(account: (typeof demoAccounts)[number]) {
   errorMessage.value = '';
 }
 
-function submitLogin() {
+async function submitLogin() {
   loading.value = true;
   errorMessage.value = '';
 
   try {
-    app.login(form.username, form.password);
+    await app.login(form.username, form.password);
     router.push(app.hasFunctionPermission('demo-preview', 'view') ? '/blueprints' : '/settings');
   } catch (error) {
     errorMessage.value = (error as Error).message;
@@ -48,7 +48,7 @@ function submitLogin() {
   <main class="login-page">
     <section class="login-shell">
       <div class="login-copy">
-        <img class="login-logo" :src="logoUrl" alt="有招平台" />
+        <img class="login-logo" :src="logoUrl" alt="有招" />
       </div>
 
       <form class="login-panel" @submit.prevent="submitLogin">

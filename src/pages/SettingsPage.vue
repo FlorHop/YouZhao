@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import Button from 'primevue/button';
@@ -55,6 +55,7 @@ const tokenForm = reactive({
 });
 
 const generatedToken = ref('');
+const settingsLoading = ref(false);
 
 const canManageSettings = computed(() => app.hasFunctionPermission('system-settings', 'manage'));
 const canCreateToken = computed(() => app.hasFunctionPermission('demo-preview', 'manage'));
@@ -75,6 +76,22 @@ watch(
   },
   { immediate: true }
 );
+
+async function refreshSettingsData() {
+  settingsLoading.value = true;
+  try {
+    await app.refreshAdminData();
+    if (!selectedUserId.value || !app.state.users.some((user) => user.id === selectedUserId.value)) {
+      selectedUserId.value = app.state.users[0]?.id ?? '';
+    }
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '加载失败', detail: (error as Error).message, life: 2800 });
+  } finally {
+    settingsLoading.value = false;
+  }
+}
+
+onMounted(refreshSettingsData);
 
 function openCreateUser() {
   editingUserId.value = null;
@@ -102,15 +119,16 @@ function openEditUser(user: User) {
   userDialogVisible.value = true;
 }
 
-function saveUser() {
+async function saveUser() {
   try {
     if (editingUserId.value) {
       const { password, ...payload } = userForm;
-      app.updateUser(editingUserId.value, payload);
+      await app.updateUser(editingUserId.value, payload);
       toast.add({ severity: 'success', summary: '用户已更新', life: 2200 });
     } else {
       const { password, ...payload } = userForm;
-      app.createUser(payload, password || '123456');
+      const user = await app.createUser(payload, password || '123456');
+      selectedUserId.value = user.id;
       toast.add({ severity: 'success', summary: '用户已创建', detail: `初始密码：${password || '123456'}`, life: 3200 });
     }
     userDialogVisible.value = false;
@@ -129,10 +147,10 @@ function openResetPassword(user: User) {
   passwordDialogVisible.value = true;
 }
 
-function saveResetPassword() {
+async function saveResetPassword() {
   if (!resettingUser.value) return;
   try {
-    app.resetUserPassword(resettingUser.value.id, passwordForm.password);
+    await app.resetUserPassword(resettingUser.value.id, passwordForm.password);
     passwordDialogVisible.value = false;
     toast.add({ severity: 'success', summary: '密码已重置', detail: `新密码：${passwordForm.password}`, life: 2800 });
   } catch (error) {
@@ -148,9 +166,9 @@ function confirmDeleteUser(user: User) {
     rejectLabel: '取消',
     acceptLabel: '删除',
     acceptClass: 'p-button-danger',
-    accept: () => {
+    accept: async () => {
       try {
-        app.deleteUser(user.id);
+        await app.deleteUser(user.id);
         selectedUserId.value = app.state.users[0]?.id ?? '';
         toast.add({ severity: 'success', summary: '用户已删除', life: 2200 });
       } catch (error) {
@@ -289,7 +307,17 @@ function confirmDeleteToken(token: McpToken) {
                 <strong>用户列表</strong>
                 <span>新建用户默认拥有蓝图查看权限和默认分组权限</span>
               </div>
-              <Button icon="pi pi-plus" label="新建用户" @click="openCreateUser" />
+              <div class="toolbar-row">
+                <Button
+                  icon="pi pi-refresh"
+                  label="刷新"
+                  severity="secondary"
+                  outlined
+                  :loading="settingsLoading"
+                  @click="refreshSettingsData"
+                />
+                <Button icon="pi pi-plus" label="新建用户" @click="openCreateUser" />
+              </div>
             </div>
             <DataTable
               :value="app.state.users"

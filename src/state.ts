@@ -1,5 +1,24 @@
 import { computed, reactive, ref } from 'vue';
 import {
+  type AdminSnapshot,
+  clearAuthToken,
+  createUserApi,
+  deleteUserApi,
+  getAuthToken,
+  getAdminUsersApi,
+  getBlueprintArtifactApi,
+  getBlueprintDetailApi,
+  getBlueprintGroupsApi,
+  getBlueprintsApi,
+  getMeApi,
+  loginApi,
+  resetUserPasswordApi,
+  setAuthToken,
+  toDemo,
+  updateBlueprintApi,
+  updateUserApi
+} from './api';
+import {
   defaultGroupId,
   authCredentialsSeed,
   demoPermissionsSeed,
@@ -33,6 +52,43 @@ const state = reactive({
 const authStorageKey = 'youzhao.auth.userId';
 export const currentUserId = ref<string | null>(localStorage.getItem(authStorageKey));
 export const isAuthenticated = computed(() => Boolean(currentUserId.value));
+const hasBackendToken = computed(() => Boolean(getAuthToken()));
+
+let bootstrapPromise: Promise<void> | null = null;
+
+function upsertById<T extends { id: string }>(collection: T[], item: T) {
+  const index = collection.findIndex((current) => current.id === item.id);
+  if (index >= 0) {
+    collection[index] = item;
+  } else {
+    collection.push(item);
+  }
+}
+
+function applyMe(payload: {
+  user: User;
+  functionPermissions: FunctionPermission[];
+  blueprintPermissions: DemoPermission[];
+}) {
+  upsertById(state.users, payload.user);
+  state.functionPermissions = [
+    ...state.functionPermissions.filter((permission) => permission.userId !== payload.user.id),
+    ...payload.functionPermissions
+  ];
+  state.demoPermissions = [
+    ...state.demoPermissions.filter((permission) => permission.userId !== payload.user.id),
+    ...payload.blueprintPermissions
+  ];
+  currentUserId.value = payload.user.id;
+  localStorage.setItem(authStorageKey, payload.user.id);
+}
+
+function applyAdminSnapshot(payload: AdminSnapshot) {
+  state.users = payload.users;
+  state.functionPermissions = payload.functionPermissions;
+  state.demoPermissions = payload.blueprintPermissions;
+  state.mcpTokens = payload.mcpTokens;
+}
 
 export function useAppState() {
   const currentUser = computed(() => state.users.find((user) => user.id === currentUserId.value) ?? null);
@@ -100,6 +156,60 @@ export function useAppState() {
       });
   });
 
+  async function bootstrapSession() {
+    if (!getAuthToken()) return;
+    if (!bootstrapPromise) {
+      bootstrapPromise = getMeApi()
+        .then(applyMe)
+        .catch(() => {
+          clearAuthToken();
+          currentUserId.value = null;
+          localStorage.removeItem(authStorageKey);
+        })
+        .finally(() => {
+          bootstrapPromise = null;
+        });
+    }
+    await bootstrapPromise;
+  }
+
+  async function refreshBlueprints() {
+    await bootstrapSession();
+    if (!getAuthToken() || !currentUser.value || !hasFunctionPermission('demo-preview', 'view')) return;
+
+    const [groupsResponse, blueprintsResponse] = await Promise.all([getBlueprintGroupsApi(), getBlueprintsApi()]);
+    state.groups = groupsResponse.items.map(({ blueprintCount, ...group }) => group);
+
+    const details = await Promise.all(blueprintsResponse.items.map((blueprint) => getBlueprintDetailApi(blueprint.id)));
+    state.demos = details.map(toDemo);
+  }
+
+  async function refreshAdminData() {
+    await bootstrapSession();
+    if (!getAuthToken() || !currentUser.value || !hasFunctionPermission('system-settings', 'manage')) return;
+    applyAdminSnapshot(await getAdminUsersApi());
+  }
+
+  async function loadBlueprintDetail(blueprintId: string) {
+    await bootstrapSession();
+    if (!getAuthToken()) return state.demos.find((demo) => demo.id === blueprintId) ?? null;
+    const detail = await getBlueprintDetailApi(blueprintId);
+    const demo = toDemo(detail);
+    upsertById(state.demos, demo);
+    return demo;
+  }
+
+  async function loadBlueprintMarkdown(blueprintId: string, version: string) {
+    const demo = state.demos.find((item) => item.id === blueprintId);
+    const targetVersion = demo?.versions.find((item) => item.version === version);
+    if (targetVersion?.markdown) return targetVersion.markdown;
+    if (!getAuthToken()) return targetVersion?.markdown ?? '';
+
+    const artifact = await getBlueprintArtifactApi(blueprintId, version, 'markdown');
+    if (targetVersion) targetVersion.markdown = artifact.content;
+    return artifact.content;
+  }
+
   function createGroup(name: string) {
     const trimmed = name.trim();
     if (!trimmed) throw new Error('分组名称不能为空');
@@ -130,19 +240,31 @@ export function useAppState() {
     state.groups = state.groups.filter((item) => item.id !== groupId);
   }
 
-  function updateDemo(demoId: string, patch: Partial<Pick<Demo, 'name' | 'summary' | 'tags' | 'groupId'>>) {
+  async function updateDemo(demoId: string, patch: Partial<Pick<Demo, 'name' | 'summary' | 'tags' | 'groupId'>>) {
     const demo = state.demos.find((item) => item.id === demoId);
     if (!demo) throw new Error('蓝图不存在');
+    if (getAuthToken()) {
+      const updated = toDemo(await updateBlueprintApi(demoId, patch));
+      upsertById(state.demos, updated);
+      return updated;
+    }
     Object.assign(demo, patch, {
       updatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
     });
+    return demo;
   }
 
-  function createUser(payload: Omit<User, 'id' | 'createdAt'>, password = '123456') {
+  async function createUser(payload: Omit<User, 'id' | 'createdAt'>, password = '123456') {
     const username = payload.username.trim();
     if (!username) throw new Error('用户名不能为空');
     if (state.users.some((user) => user.username === username)) throw new Error('用户名已存在');
     if (!password.trim()) throw new Error('密码不能为空');
+
+    if (getAuthToken()) {
+      const response = await createUserApi({ ...payload, username, password: password.trim() });
+      applyAdminSnapshot(response.admin);
+      return response.user;
+    }
 
     const user: User = {
       ...payload,
@@ -155,21 +277,40 @@ export function useAppState() {
     state.credentials[user.username] = password.trim();
     state.functionPermissions.push({ userId: user.id, module: 'demo-preview', level: 'view' });
     state.demoPermissions.push({ userId: user.id, targetType: 'group', targetId: defaultGroupId });
+    return user;
   }
 
-  function updateUser(userId: string, payload: Omit<User, 'id' | 'createdAt'>) {
+  async function updateUser(userId: string, payload: Omit<User, 'id' | 'createdAt'>) {
     const user = state.users.find((item) => item.id === userId);
     if (!user) throw new Error('用户不存在');
+
+    if (getAuthToken()) {
+      const { username, ...serverPayload } = payload;
+      const response = await updateUserApi(userId, serverPayload);
+      applyAdminSnapshot(response.admin);
+      return response.user;
+    }
+
     const previousUsername = user.username;
     Object.assign(user, payload);
     if (previousUsername !== user.username && state.credentials[previousUsername]) {
       state.credentials[user.username] = state.credentials[previousUsername];
       delete state.credentials[previousUsername];
     }
+    return user;
   }
 
-  function deleteUser(userId: string) {
+  async function deleteUser(userId: string) {
     if (state.users.length === 1) throw new Error('至少保留一个用户');
+    if (getAuthToken()) {
+      const response = await deleteUserApi(userId);
+      applyAdminSnapshot(response.admin);
+      if (currentUserId.value === userId) {
+        logout();
+      }
+      return;
+    }
+
     const user = state.users.find((item) => item.id === userId);
     state.users = state.users.filter((user) => user.id !== userId);
     if (user) delete state.credentials[user.username];
@@ -181,14 +322,31 @@ export function useAppState() {
     }
   }
 
-  function resetUserPassword(userId: string, password: string) {
+  async function resetUserPassword(userId: string, password: string) {
     const user = state.users.find((item) => item.id === userId);
     if (!user) throw new Error('用户不存在');
     if (!password.trim()) throw new Error('密码不能为空');
+    if (getAuthToken()) {
+      const response = await resetUserPasswordApi(userId, password.trim());
+      applyAdminSnapshot(response.admin);
+      return;
+    }
     state.credentials[user.username] = password.trim();
   }
 
-  function login(username: string, password: string) {
+  async function login(username: string, password: string) {
+    try {
+      const payload = await loginApi(username, password);
+      setAuthToken(payload.token);
+      const me = await getMeApi();
+      applyMe(me);
+      return;
+    } catch (backendError) {
+      clearAuthToken();
+      const canUseLocalFallback = !backendError || (backendError as Error).message === 'Failed to fetch';
+      if (!canUseLocalFallback) throw backendError;
+    }
+
     const user = state.users.find((item) => item.username === username.trim());
     if (!user) throw new Error('用户名或密码错误');
     if (user.status !== 'enabled') throw new Error('该用户已停用');
@@ -200,6 +358,7 @@ export function useAppState() {
 
   function logout() {
     currentUserId.value = null;
+    clearAuthToken();
     localStorage.removeItem(authStorageKey);
   }
 
@@ -263,9 +422,15 @@ export function useAppState() {
     currentUser,
     currentUserId,
     isAuthenticated,
+    hasBackendToken,
     visibleDemos,
     visibleGroups,
     hasFunctionPermission,
+    bootstrapSession,
+    refreshBlueprints,
+    refreshAdminData,
+    loadBlueprintDetail,
+    loadBlueprintMarkdown,
     getUserVisibleDemoIds,
     createGroup,
     deleteGroup,

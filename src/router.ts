@@ -20,8 +20,10 @@ export const router = createRouter({
   ]
 });
 
-router.beforeEach((to) => {
+router.beforeEach(async (to) => {
   const app = useAppState();
+
+  await app.bootstrapSession();
 
   if (to.meta.public) {
     if (app.isAuthenticated.value) {

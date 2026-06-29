@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import Button from 'primevue/button';
@@ -24,6 +24,7 @@ const draggedFromGroupId = ref<string | null>(null);
 const editingDemo = ref<Demo | null>(null);
 const groupDialogVisible = ref(false);
 const editDialogVisible = ref(false);
+const pageLoading = ref(false);
 const newGroupName = ref('');
 const editForm = reactive({
   name: '',
@@ -38,6 +39,22 @@ const queryForm = reactive({
 
 const canViewDemo = computed(() => app.hasFunctionPermission('demo-preview', 'view'));
 const canManageDemo = computed(() => app.hasFunctionPermission('demo-preview', 'manage'));
+
+async function refreshPageData(showToast = false) {
+  pageLoading.value = true;
+  try {
+    await app.refreshBlueprints();
+    if (showToast) toast.add({ severity: 'success', summary: '已刷新', life: 1600 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '刷新失败', detail: (error as Error).message, life: 2800 });
+  } finally {
+    pageLoading.value = false;
+  }
+}
+
+onMounted(() => {
+  refreshPageData();
+});
 
 const groupOptions = computed(() =>
   [{ id: '', name: '全部分组' }, ...app.visibleGroups.value]
@@ -77,10 +94,14 @@ const contextItems = computed(() => [
     label: '移动到默认分组',
     icon: 'pi pi-folder',
     disabled: !canManageDemo.value || !editingDemo.value || editingDemo.value.groupId === 'group_default',
-    command: () => {
+    command: async () => {
       if (!editingDemo.value) return;
-      app.updateDemo(editingDemo.value.id, { groupId: 'group_default' });
-      toast.add({ severity: 'success', summary: '已移动', detail: '蓝图已移动至默认分组', life: 2400 });
+      try {
+        await app.updateDemo(editingDemo.value.id, { groupId: 'group_default' });
+        toast.add({ severity: 'success', summary: '已移动', detail: '蓝图已移动至默认分组', life: 2400 });
+      } catch (error) {
+        toast.add({ severity: 'error', summary: '移动失败', detail: (error as Error).message, life: 2800 });
+      }
     }
   }
 ]);
@@ -154,21 +175,25 @@ function openEditDialog() {
   editDialogVisible.value = true;
 }
 
-function saveDemoEdit() {
+async function saveDemoEdit() {
   if (!editingDemo.value) return;
   const tags = editForm.tags
     .split(/[，,]/)
     .map((tag) => tag.trim())
     .filter(Boolean);
 
-  app.updateDemo(editingDemo.value.id, {
-    name: editForm.name,
-    summary: editForm.summary,
-    tags,
-    groupId: editForm.groupId
-  });
-  editDialogVisible.value = false;
-  toast.add({ severity: 'success', summary: '蓝图信息已更新', life: 2200 });
+  try {
+    await app.updateDemo(editingDemo.value.id, {
+      name: editForm.name,
+      summary: editForm.summary,
+      tags,
+      groupId: editForm.groupId
+    });
+    editDialogVisible.value = false;
+    toast.add({ severity: 'success', summary: '蓝图信息已更新', life: 2200 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '保存失败', detail: (error as Error).message, life: 2800 });
+  }
 }
 
 function onDragStart(demo: Demo) {
@@ -177,17 +202,22 @@ function onDragStart(demo: Demo) {
   draggedFromGroupId.value = demo.groupId;
 }
 
-function onDrop(groupId: string) {
+async function onDrop(groupId: string) {
   if (!canManageDemo.value || !draggedDemoId.value) return;
   if (draggedFromGroupId.value === groupId) {
     draggedDemoId.value = null;
     draggedFromGroupId.value = null;
     return;
   }
-  app.updateDemo(draggedDemoId.value, { groupId });
+  const demoId = draggedDemoId.value;
   draggedDemoId.value = null;
   draggedFromGroupId.value = null;
-  toast.add({ severity: 'success', summary: '分组已变更', life: 1800 });
+  try {
+    await app.updateDemo(demoId, { groupId });
+    toast.add({ severity: 'success', summary: '分组已变更', life: 1800 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '分组变更失败', detail: (error as Error).message, life: 2800 });
+  }
 }
 </script>
 
@@ -206,7 +236,8 @@ function onDrop(groupId: string) {
           label="刷新"
           severity="secondary"
           outlined
-          @click="toast.add({ severity: 'info', summary: '已刷新本地数据', life: 1600 })"
+          :loading="pageLoading"
+          @click="refreshPageData(true)"
         />
         <Button
           v-if="canManageDemo"

@@ -78,7 +78,7 @@ onBeforeUnmount(stopSidebarResize);
       <div class="brand">
         <div class="brand-mark">有</div>
         <div class="brand-copy">
-          <strong>有招平台</strong>
+          <strong>有招</strong>
           <span>蓝图设计与展示</span>
         </div>
       </div>
