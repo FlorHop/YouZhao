@@ -207,16 +207,40 @@ http://<server-ip>/
 
 ### 5. 发布新版本
 
-在服务器执行：
+服务器部署完成后，后续发布新版本只需要执行更新脚本：
 
 ```bash
 cd /opt/youzhao/app
-git pull
-npm ci
-npm run build
-sudo systemctl restart youzhao-api
-sudo systemctl reload nginx
-curl http://127.0.0.1:4174/api/health
+bash scripts/update.sh
+```
+
+脚本会自动执行：
+
+- 检查工作区是否干净。
+- 备份 `/data/youzhao` 到 `/data/youzhao/backups`。
+- 拉取 `origin/main` 最新代码。
+- 执行 `npm ci`。
+- 执行 `npm run build`。
+- 重启 `youzhao-api`。
+- 检查并重载 Nginx。
+- 调用健康检查接口。
+
+可选环境变量：
+
+| 变量 | 默认值 | 说明 |
+| --- | --- | --- |
+| `APP_DIR` | `/opt/youzhao/app` | 应用代码目录 |
+| `YOUZHAO_DATA_DIR` | `/data/youzhao` | 数据目录 |
+| `YOUZHAO_BACKUP_DIR` | `/data/youzhao/backups` | 备份目录 |
+| `YOUZHAO_BRANCH` | `main` | 更新分支 |
+| `YOUZHAO_API_SERVICE` | `youzhao-api` | systemd 服务名 |
+| `YOUZHAO_HEALTH_URL` | `http://127.0.0.1:4174/api/health` | 健康检查地址 |
+| `YOUZHAO_SKIP_BACKUP` | `false` | 设置为 `true` 可跳过备份 |
+
+示例：
+
+```bash
+YOUZHAO_SKIP_BACKUP=true bash scripts/update.sh
 ```
 
 ### 6. 数据与备份
