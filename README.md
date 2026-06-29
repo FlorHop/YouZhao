@@ -15,7 +15,7 @@
 
 要求：
 
-- Node.js 20+
+- Node.js 24+
 - npm 10+
 
 安装依赖：
@@ -111,7 +111,7 @@ npm run build
 
 ## 服务器部署手册
 
-以下流程适用于单台 Linux 服务器部署当前 MVP。当前后端仍为内存数据模型，蓝图发布产物会持久化到 `YOUZHAO_DATA_DIR`；用户、权限、分组、蓝图元数据在服务重启后会恢复为种子数据。生产级持久化数据库将在后续版本补齐。
+以下流程适用于单台 Linux 服务器部署当前 MVP。后端使用 SQLite 持久化业务数据，蓝图发布产物和数据库默认都存放在 `YOUZHAO_DATA_DIR`。服务重启后会保留用户、权限、分组、蓝图元数据、MCP Token、MCP 审计日志和发布幂等记录。
 
 ### 1. 准备服务器
 
@@ -128,10 +128,10 @@ sudo apt update
 sudo apt install -y git curl nginx
 ```
 
-安装 Node.js 20：
+安装 Node.js 24 或更高版本：
 
 ```bash
-curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
 sudo apt install -y nodejs
 node -v
 npm -v
@@ -176,6 +176,7 @@ WorkingDirectory=/opt/youzhao/app
 Environment=NODE_ENV=production
 Environment=YOUZHAO_API_PORT=4174
 Environment=YOUZHAO_DATA_DIR=/data/youzhao
+Environment=YOUZHAO_DB_PATH=/data/youzhao/youzhao.sqlite
 ExecStart=/usr/bin/node server/index.mjs
 Restart=always
 RestartSec=3
@@ -274,6 +275,7 @@ bash scripts/update.sh
 | --- | --- | --- |
 | `APP_DIR` | `/opt/youzhao/app` | 应用代码目录 |
 | `YOUZHAO_DATA_DIR` | `/data/youzhao` | 数据目录 |
+| `YOUZHAO_DB_PATH` | `/data/youzhao/youzhao.sqlite` | SQLite 数据库文件 |
 | `YOUZHAO_BACKUP_DIR` | `/data/youzhao/backups` | 备份目录 |
 | `YOUZHAO_BRANCH` | `main` | 更新分支 |
 | `YOUZHAO_API_SERVICE` | `youzhao-api` | systemd 服务名 |
@@ -292,6 +294,9 @@ YOUZHAO_SKIP_BACKUP=true bash scripts/update.sh
 
 ```text
 /data/youzhao/
+├─ youzhao.sqlite
+├─ previews/
+└─ backups/
 ```
 
 备份命令示例：
@@ -326,6 +331,12 @@ sudo systemctl start youzhao-api
 - 确认 `YOUZHAO_DATA_DIR=/data/youzhao`
 - 确认 `/data/youzhao/previews` 目录存在且服务进程有写权限
 
+业务数据重启后丢失：
+
+- 确认服务使用 Node.js 24 或更高版本。
+- 确认 `YOUZHAO_DB_PATH=/data/youzhao/youzhao.sqlite`。
+- 确认 `/data/youzhao/youzhao.sqlite` 存在且服务进程有读写权限。
+
 ## 目录说明
 
 ```text
@@ -336,8 +347,23 @@ public/     前端静态蓝图预览样例
 icon/       Logo 原始文件
 ```
 
+## 版本规范
+
+有招使用 `MAJOR.MINOR.PATCH` 版本号：
+
+- `MAJOR`：架构、数据存储、部署方式、权限模型等影响生产运行方式的变更。
+- `MINOR`：小功能迭代、页面能力补充、接口能力新增且兼容旧版本的变更。
+- `PATCH`：缺陷修复、文案调整、样式微调、兼容性修复。
+
+平台版本需要同步更新：
+
+- `package.json` 的 `version`
+- `src/version.ts` 的 `appVersion`
+- 后端 `/api/health` 返回的 `version`
+- MCP Server `initialize` 返回的 `serverInfo.version`
+
 ## 重要限制
 
-- 当前版本后端结构化数据仍为内存模型。
+- 当前版本后端结构化数据使用 SQLite 单表快照持久化，适合单机生产版；后续可演进为多表关系模型。
 - 当前 MCP Server 是 stdio transport，内部复用后端蓝图工具接口。
-- 单机生产版 Docker Compose、数据库迁移和 CLI 升级脚本仍在后续建设中。
+- 单机生产版 Docker Compose 和数据库迁移工具仍在后续建设中。

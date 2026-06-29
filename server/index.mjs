@@ -1,22 +1,25 @@
 import { createHash, randomBytes, randomUUID } from 'node:crypto';
-import { createReadStream } from 'node:fs';
+import { createReadStream, mkdirSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
 import http from 'node:http';
 import path from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const rootDir = path.resolve(__dirname, '..');
 const port = Number(process.env.YOUZHAO_API_PORT ?? process.env.PORT ?? 4174);
 const dataDir = path.resolve(process.env.YOUZHAO_DATA_DIR ?? path.join(rootDir, 'data', 'youzhao'));
+const dbPath = path.resolve(process.env.YOUZHAO_DB_PATH ?? path.join(dataDir, 'youzhao.sqlite'));
 const artifactRoot = path.join(dataDir, 'previews');
 const maxJsonBytes = 5 * 1024 * 1024;
 const maxHtmlBytes = 2 * 1024 * 1024;
 const maxMarkdownBytes = 512 * 1024;
 
 const defaultGroupId = 'group_default';
+const appVersion = '1.0.0';
 
-const users = [
+let users = [
   {
     id: 'user_admin',
     username: 'admin',
@@ -46,19 +49,19 @@ const users = [
   }
 ];
 
-const credentials = new Map([
+let credentials = new Map([
   ['admin', 'admin123'],
   ['demo.manager', 'demo123'],
   ['viewer', 'viewer123']
 ]);
 
-const groups = [
+let groups = [
   { id: defaultGroupId, name: '默认', isDefault: true, order: 0, createdAt: '2026-06-12 09:00' },
   { id: 'group_city', name: '城市治理', isDefault: false, order: 10, createdAt: '2026-06-12 09:10' },
   { id: 'group_invest', name: '招商引资', isDefault: false, order: 20, createdAt: '2026-06-12 09:20' }
 ];
 
-const blueprints = [
+let blueprints = [
   {
     id: 'demo_invest_001',
     name: '招商驾驶舱',
@@ -138,14 +141,14 @@ const blueprints = [
   }
 ];
 
-const functionPermissions = [
+let functionPermissions = [
   { userId: 'user_admin', module: 'system-settings', level: 'manage' },
   { userId: 'user_admin', module: 'demo-preview', level: 'manage' },
   { userId: 'user_demo_manager', module: 'demo-preview', level: 'manage' },
   { userId: 'user_viewer', module: 'demo-preview', level: 'view' }
 ];
 
-const blueprintPermissions = [
+let blueprintPermissions = [
   { userId: 'user_admin', targetType: 'group', targetId: defaultGroupId },
   { userId: 'user_admin', targetType: 'group', targetId: 'group_city' },
   { userId: 'user_admin', targetType: 'group', targetId: 'group_invest' },
@@ -156,7 +159,7 @@ const blueprintPermissions = [
   { userId: 'user_viewer', targetType: 'demo', targetId: 'demo_invest_001' }
 ];
 
-const mcpTokens = [
+let mcpTokens = [
   createMcpTokenSeed('mcp_token_codex', 'Codex Agent', 'user_admin', 'yz_mcp_dev_admin', [
     'read:blueprint',
     'publish:blueprint'
@@ -169,8 +172,8 @@ const mcpTokens = [
 ];
 
 const sessions = new Map();
-const publishResultsByKey = new Map();
-const auditLogs = [];
+let publishResultsByKey = new Map();
+let auditLogs = [];
 
 function createMcpTokenSeed(id, name, boundUserId, token, scopes) {
   return {
@@ -223,6 +226,68 @@ function publicVersion(version) {
     artifacts: ['html', 'markdown'],
     publishedAt: version.deployedAt
   };
+}
+
+function mapToEntries(map) {
+  return Array.from(map.entries());
+}
+
+function entriesToMap(entries) {
+  return new Map(Array.isArray(entries) ? entries : []);
+}
+
+function serializeState() {
+  return {
+    users,
+    credentials: mapToEntries(credentials),
+    groups,
+    blueprints,
+    functionPermissions,
+    blueprintPermissions,
+    mcpTokens,
+    publishResultsByKey: mapToEntries(publishResultsByKey),
+    auditLogs
+  };
+}
+
+mkdirSync(dataDir, { recursive: true });
+const db = new DatabaseSync(dbPath);
+db.exec(`
+  CREATE TABLE IF NOT EXISTS app_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+  )
+`);
+const getStateStmt = db.prepare('SELECT value FROM app_state WHERE key = ?');
+const upsertStateStmt = db.prepare(`
+  INSERT INTO app_state (key, value, updated_at)
+  VALUES (?, ?, ?)
+  ON CONFLICT(key) DO UPDATE SET
+    value = excluded.value,
+    updated_at = excluded.updated_at
+`);
+
+function persistState() {
+  upsertStateStmt.run('main', JSON.stringify(serializeState()), nowIso());
+}
+
+function loadPersistedState() {
+  const row = getStateStmt.get('main');
+  if (!row?.value) {
+    persistState();
+    return;
+  }
+  const state = JSON.parse(row.value);
+  users = Array.isArray(state.users) ? state.users : users;
+  credentials = entriesToMap(state.credentials);
+  groups = Array.isArray(state.groups) ? state.groups : groups;
+  blueprints = Array.isArray(state.blueprints) ? state.blueprints : blueprints;
+  functionPermissions = Array.isArray(state.functionPermissions) ? state.functionPermissions : functionPermissions;
+  blueprintPermissions = Array.isArray(state.blueprintPermissions) ? state.blueprintPermissions : blueprintPermissions;
+  mcpTokens = Array.isArray(state.mcpTokens) ? state.mcpTokens : mcpTokens;
+  publishResultsByKey = entriesToMap(state.publishResultsByKey);
+  auditLogs = Array.isArray(state.auditLogs) ? state.auditLogs : auditLogs;
 }
 
 function sortGroups(items) {
@@ -298,6 +363,7 @@ function authenticateMcp(req) {
   const user = users.find((item) => item.id === token.boundUserId && item.status === 'enabled');
   if (!user) throw apiError(401, 'UNAUTHENTICATED', '绑定用户不可用');
   token.lastUsedAt = nowIso();
+  persistState();
   return { token, user };
 }
 
@@ -409,6 +475,8 @@ async function auditMcp(req, context, params, startedAt, result, errorCode, extr
     markdownSize: extra.markdownSize,
     createdAt: nowIso()
   });
+  auditLogs = auditLogs.slice(0, 1000);
+  persistState();
 }
 
 function validateText(value, field, { required = false, max = 100 } = {}) {
@@ -478,6 +546,57 @@ function validateUserPayload(body, { partial = false } = {}) {
     throw apiError(400, 'INVALID_ARGUMENT', 'status 仅支持 enabled 或 disabled');
   }
   return { username, displayName, email, phone, status };
+}
+
+function validateFunctionPermissionPayload(permissions) {
+  if (!Array.isArray(permissions)) throw apiError(400, 'INVALID_ARGUMENT', 'functionPermissions 必须是数组');
+  const seenModules = new Set();
+  return permissions.map((permission) => {
+    const module = validateText(permission.module, 'module', { required: true, max: 40 });
+    const level = validateText(permission.level, 'level', { required: true, max: 20 });
+    if (!['demo-preview', 'system-settings'].includes(module)) {
+      throw apiError(400, 'INVALID_ARGUMENT', '未知功能模块');
+    }
+    if (module === 'system-settings' && level !== 'manage') {
+      throw apiError(400, 'INVALID_ARGUMENT', '系统设置仅支持管理权限');
+    }
+    if (module === 'demo-preview' && !['view', 'manage'].includes(level)) {
+      throw apiError(400, 'INVALID_ARGUMENT', '蓝图预览权限仅支持查看或管理');
+    }
+    if (seenModules.has(module)) throw apiError(400, 'INVALID_ARGUMENT', '功能权限模块重复');
+    seenModules.add(module);
+    return { module, level };
+  });
+}
+
+function validateBlueprintPermissionPayload(permissions) {
+  if (!Array.isArray(permissions)) throw apiError(400, 'INVALID_ARGUMENT', 'blueprintPermissions 必须是数组');
+  const seenTargets = new Set();
+  return permissions.map((permission) => {
+    const targetType = validateText(permission.targetType, 'targetType', { required: true, max: 20 });
+    const targetId = validateText(permission.targetId, 'targetId', { required: true, max: 64 });
+    if (!['group', 'demo'].includes(targetType)) {
+      throw apiError(400, 'INVALID_ARGUMENT', '蓝图授权类型仅支持 group 或 demo');
+    }
+    if (targetType === 'group' && !groups.some((group) => group.id === targetId)) {
+      throw apiError(400, 'INVALID_ARGUMENT', '授权分组不存在');
+    }
+    if (targetType === 'demo' && !blueprints.some((blueprint) => blueprint.id === targetId)) {
+      throw apiError(400, 'INVALID_ARGUMENT', '授权蓝图不存在');
+    }
+    const key = `${targetType}:${targetId}`;
+    if (seenTargets.has(key)) throw apiError(400, 'INVALID_ARGUMENT', '蓝图授权目标重复');
+    seenTargets.add(key);
+    return { targetType, targetId };
+  });
+}
+
+function validateMcpTokenStatus(status) {
+  const nextStatus = validateText(status, 'status', { required: true, max: 20 });
+  if (!['enabled', 'disabled'].includes(nextStatus)) {
+    throw apiError(400, 'INVALID_ARGUMENT', 'status 仅支持 enabled 或 disabled');
+  }
+  return nextStatus;
 }
 
 function adminSnapshot() {
@@ -691,6 +810,7 @@ async function publishBlueprint(ctx, params) {
     publishedAt
   };
   if (idempotencyKey) publishResultsByKey.set(idempotencyKey, result);
+  persistState();
   return result;
 }
 
@@ -750,7 +870,9 @@ async function route(req, res) {
     return sendJson(res, 200, {
       ok: true,
       service: 'youzhao-api',
+      version: appVersion,
       dataDir,
+      dbPath,
       time: nowIso()
     });
   }
@@ -806,6 +928,7 @@ async function route(req, res) {
     credentials.set(user.username, password);
     functionPermissions.push({ userId: user.id, module: 'demo-preview', level: 'view' });
     blueprintPermissions.push({ userId: user.id, targetType: 'group', targetId: defaultGroupId });
+    persistState();
     return sendJson(res, 201, { user, admin: adminSnapshot() });
   }
 
@@ -823,6 +946,7 @@ async function route(req, res) {
     if (payload.email !== undefined) user.email = payload.email;
     if (payload.phone !== undefined) user.phone = payload.phone;
     if (payload.status !== undefined) user.status = payload.status;
+    persistState();
     return sendJson(res, 200, { user, admin: adminSnapshot() });
   }
 
@@ -845,6 +969,7 @@ async function route(req, res) {
     for (let i = mcpTokens.length - 1; i >= 0; i -= 1) {
       if (mcpTokens[i].boundUserId === userId) mcpTokens.splice(i, 1);
     }
+    persistState();
     return sendJson(res, 200, { admin: adminSnapshot() });
   }
 
@@ -859,7 +984,109 @@ async function route(req, res) {
     const body = await parseJson(req);
     const password = validateText(body.password, 'password', { required: true, max: 120 });
     credentials.set(user.username, password);
+    persistState();
     return sendJson(res, 200, { user, admin: adminSnapshot() });
+  }
+
+  const userPermissionsMatch = pathname.match(/^\/api\/admin\/users\/([^/]+)\/permissions$/);
+  if (userPermissionsMatch && req.method === 'PUT') {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireSystemManage(session.user);
+    const userId = decodeURIComponent(userPermissionsMatch[1]);
+    const user = users.find((item) => item.id === userId);
+    if (!user) throw apiError(404, 'USER_NOT_FOUND', '用户不存在');
+    const body = await parseJson(req);
+    const nextFunctionPermissions = validateFunctionPermissionPayload(body.functionPermissions ?? []);
+    const nextBlueprintPermissions = validateBlueprintPermissionPayload(body.blueprintPermissions ?? []);
+
+    for (let i = functionPermissions.length - 1; i >= 0; i -= 1) {
+      if (functionPermissions[i].userId === userId) functionPermissions.splice(i, 1);
+    }
+    functionPermissions.push(
+      ...nextFunctionPermissions.map((permission) => ({
+        userId,
+        ...permission
+      }))
+    );
+
+    for (let i = blueprintPermissions.length - 1; i >= 0; i -= 1) {
+      if (blueprintPermissions[i].userId === userId) blueprintPermissions.splice(i, 1);
+    }
+    blueprintPermissions.push(
+      ...nextBlueprintPermissions.map((permission) => ({
+        userId,
+        ...permission
+      }))
+    );
+
+    persistState();
+    return sendJson(res, 200, { admin: adminSnapshot() });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/admin/mcp-tokens') {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireBlueprintManage(session.user);
+    const body = await parseJson(req);
+    const name = validateText(body.name, 'name', { required: true, max: 60 });
+    const expiresAt = validateText(body.expiresAt, 'expiresAt', { max: 40 }) ?? '永不过期';
+    if (expiresAt !== '永不过期' && Number.isNaN(Date.parse(expiresAt))) {
+      throw apiError(400, 'INVALID_ARGUMENT', 'expiresAt 不是有效时间');
+    }
+    const rawToken = `yz_mcp_${randomBytes(18).toString('hex')}`;
+    const token = {
+      id: `mcp_token_${randomUUID().slice(0, 8)}`,
+      name,
+      boundUserId: session.user.id,
+      status: 'enabled',
+      scopes: hasModulePermission(session.user.id, 'demo-preview', 'manage')
+        ? ['read:blueprint', 'publish:blueprint']
+        : ['read:blueprint'],
+      tokenHash: sha256(rawToken),
+      tokenPreview: `${rawToken.slice(0, 7)}****${rawToken.slice(-4)}`,
+      expiresAt,
+      lastUsedAt: '未使用',
+      createdAt: nowIso()
+    };
+    mcpTokens.unshift(token);
+    const { tokenHash, ...publicToken } = token;
+    persistState();
+    return sendJson(res, 201, { token: rawToken, mcpToken: publicToken, admin: adminSnapshot() });
+  }
+
+  const mcpTokenMatch = pathname.match(/^\/api\/admin\/mcp-tokens\/([^/]+)$/);
+  if (mcpTokenMatch && req.method === 'PATCH') {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireBlueprintManage(session.user);
+    const tokenId = decodeURIComponent(mcpTokenMatch[1]);
+    const token = mcpTokens.find((item) => item.id === tokenId);
+    if (!token) throw apiError(404, 'TOKEN_NOT_FOUND', 'Token 不存在');
+    if (token.boundUserId !== session.user.id && !hasModulePermission(session.user.id, 'system-settings', 'manage')) {
+      throw apiError(403, 'FORBIDDEN', '不可管理其他用户 Token');
+    }
+    const body = await parseJson(req);
+    token.status = validateMcpTokenStatus(body.status);
+    const { tokenHash, ...publicToken } = token;
+    persistState();
+    return sendJson(res, 200, { mcpToken: publicToken, admin: adminSnapshot() });
+  }
+
+  if (mcpTokenMatch && req.method === 'DELETE') {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireBlueprintManage(session.user);
+    const tokenId = decodeURIComponent(mcpTokenMatch[1]);
+    const index = mcpTokens.findIndex((item) => item.id === tokenId);
+    if (index < 0) throw apiError(404, 'TOKEN_NOT_FOUND', 'Token 不存在');
+    const token = mcpTokens[index];
+    if (token.boundUserId !== session.user.id && !hasModulePermission(session.user.id, 'system-settings', 'manage')) {
+      throw apiError(403, 'FORBIDDEN', '不可删除其他用户 Token');
+    }
+    mcpTokens.splice(index, 1);
+    persistState();
+    return sendJson(res, 200, { admin: adminSnapshot() });
   }
 
   if (req.method === 'GET' && pathname === '/api/blueprint-groups') {
@@ -889,6 +1116,7 @@ async function route(req, res) {
     };
     groups.push(group);
     blueprintPermissions.push({ userId: session.user.id, targetType: 'group', targetId: group.id });
+    persistState();
     return sendJson(res, 201, listBlueprintGroups({ token: { scopes: ['read:blueprint'] }, user: session.user }, {
       includeEmpty: true
     }));
@@ -909,6 +1137,7 @@ async function route(req, res) {
       const index = orderedIds.indexOf(group.id);
       group.order = (index >= 0 ? index : orderedIds.length) * 10;
     });
+    persistState();
     return sendJson(res, 200, listBlueprintGroups({ token: { scopes: ['read:blueprint'] }, user: session.user }, {
       includeEmpty: true
     }));
@@ -938,6 +1167,7 @@ async function route(req, res) {
     const groupIndex = groups.findIndex((item) => item.id === groupId);
     groups.splice(groupIndex, 1);
 
+    persistState();
     return sendJson(res, 200, {
       groups: listBlueprintGroups({ token: { scopes: ['read:blueprint'] }, user: session.user }, { includeEmpty: true }),
       blueprints: listBlueprints({ token: { scopes: ['read:blueprint'] }, user: session.user }, { limit: 100, offset: 0 })
@@ -987,6 +1217,7 @@ async function route(req, res) {
     if (patch.tags !== undefined) blueprint.tags = patch.tags;
     blueprint.updatedAt = nowIso();
 
+    persistState();
     return sendJson(res, 200, {
       ...publicBlueprint(blueprint),
       versions: blueprint.versions.map(publicVersion)
@@ -1033,9 +1264,11 @@ const server = http.createServer(async (req, res) => {
   }
 });
 
+loadPersistedState();
 await mkdir(artifactRoot, { recursive: true });
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`YouZhao API listening on http://127.0.0.1:${port}`);
+  console.log(`YouZhao SQLite storage: ${dbPath}`);
   console.log('MCP dev tokens: yz_mcp_dev_admin, yz_mcp_dev_publish, yz_mcp_dev_viewer');
 });

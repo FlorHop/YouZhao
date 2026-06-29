@@ -178,30 +178,33 @@ function confirmDeleteUser(user: User) {
   });
 }
 
-function savePermissions() {
+async function savePermissions() {
   if (!selectedUserId.value) return;
 
-  app.setFunctionPermission(selectedUserId.value, 'demo-preview', permissionForm.demoLevel);
-  app.setFunctionPermission(
-    selectedUserId.value,
-    'system-settings',
-    permissionForm.systemSettingsManage ? 'manage' : null
-  );
+  const functionPermissions = [
+    ...(permissionForm.demoLevel ? [{ module: 'demo-preview' as const, level: permissionForm.demoLevel }] : []),
+    ...(permissionForm.systemSettingsManage
+      ? [{ module: 'system-settings' as const, level: 'manage' as const }]
+      : [])
+  ];
 
-  const permissions: DemoPermission[] = [
+  const permissions = [
     ...permissionForm.groupIds.map((targetId) => ({
-      userId: selectedUserId.value,
       targetType: 'group' as const,
       targetId
     })),
     ...permissionForm.demoIds.map((targetId) => ({
-      userId: selectedUserId.value,
       targetType: 'demo' as const,
       targetId
     }))
   ];
-  app.setDemoPermissions(selectedUserId.value, permissions);
-  toast.add({ severity: 'success', summary: '权限已保存', life: 2200 });
+
+  try {
+    await app.updateUserPermissions(selectedUserId.value, functionPermissions, permissions);
+    toast.add({ severity: 'success', summary: '权限已保存', life: 2200 });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '保存失败', detail: (error as Error).message, life: 2800 });
+  }
 }
 
 function statusSeverity(status: User['status']) {
@@ -223,9 +226,9 @@ function openCreateToken() {
   tokenDialogVisible.value = true;
 }
 
-function createToken() {
+async function createToken() {
   try {
-    generatedToken.value = app.createMcpToken({
+    generatedToken.value = await app.createMcpToken({
       name: tokenForm.name,
       boundUserId: app.currentUser.value?.id ?? '',
       expiresAt: tokenForm.expiresAt
@@ -238,14 +241,18 @@ function createToken() {
   }
 }
 
-function toggleTokenStatus(token: McpToken) {
+async function toggleTokenStatus(token: McpToken) {
   const nextStatus = token.status === 'enabled' ? 'disabled' : 'enabled';
-  app.setMcpTokenStatus(token.id, nextStatus);
-  toast.add({
-    severity: 'success',
-    summary: nextStatus === 'enabled' ? 'Token 已启用' : 'Token 已停用',
-    life: 2200
-  });
+  try {
+    await app.setMcpTokenStatus(token.id, nextStatus);
+    toast.add({
+      severity: 'success',
+      summary: nextStatus === 'enabled' ? 'Token 已启用' : 'Token 已停用',
+      life: 2200
+    });
+  } catch (error) {
+    toast.add({ severity: 'error', summary: '操作失败', detail: (error as Error).message, life: 2800 });
+  }
 }
 
 function confirmDeleteToken(token: McpToken) {
@@ -256,9 +263,13 @@ function confirmDeleteToken(token: McpToken) {
     rejectLabel: '取消',
     acceptLabel: '删除',
     acceptClass: 'p-button-danger',
-    accept: () => {
-      app.deleteMcpToken(token.id);
-      toast.add({ severity: 'success', summary: 'Token 已删除', life: 2200 });
+    accept: async () => {
+      try {
+        await app.deleteMcpToken(token.id);
+        toast.add({ severity: 'success', summary: 'Token 已删除', life: 2200 });
+      } catch (error) {
+        toast.add({ severity: 'error', summary: '删除失败', detail: (error as Error).message, life: 2800 });
+      }
     }
   });
 }

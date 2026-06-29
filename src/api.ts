@@ -182,6 +182,39 @@ export async function resetUserPasswordApi(userId: string, password: string) {
   });
 }
 
+export async function updateUserPermissionsApi(
+  userId: string,
+  payload: {
+    functionPermissions: Array<Omit<FunctionPermission, 'userId'>>;
+    blueprintPermissions: Array<Omit<DemoPermission, 'userId'>>;
+  }
+) {
+  return request<{ admin: AdminSnapshot }>(`/api/admin/users/${encodeURIComponent(userId)}/permissions`, {
+    method: 'PUT',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function createMcpTokenApi(payload: Pick<McpToken, 'name' | 'expiresAt'>) {
+  return request<{ token: string; mcpToken: McpToken; admin: AdminSnapshot }>('/api/admin/mcp-tokens', {
+    method: 'POST',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function updateMcpTokenApi(tokenId: string, payload: Pick<McpToken, 'status'>) {
+  return request<{ mcpToken: McpToken; admin: AdminSnapshot }>(`/api/admin/mcp-tokens/${encodeURIComponent(tokenId)}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteMcpTokenApi(tokenId: string) {
+  return request<{ admin: AdminSnapshot }>(`/api/admin/mcp-tokens/${encodeURIComponent(tokenId)}`, {
+    method: 'DELETE'
+  });
+}
+
 export function toDemoVersion(blueprintId: string, version: BlueprintDetail['versions'][number]): DemoVersion {
   return {
     id: version.id,

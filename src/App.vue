@@ -6,6 +6,7 @@ import Button from 'primevue/button';
 import ConfirmDialog from 'primevue/confirmdialog';
 import Toast from 'primevue/toast';
 import { useAppState } from './state';
+import { appVersion } from './version';
 
 const route = useRoute();
 const router = useRouter();
@@ -80,6 +81,7 @@ onBeforeUnmount(stopSidebarResize);
         <div class="brand-copy">
           <strong>有招</strong>
           <span>蓝图设计与展示</span>
+          <em>v{{ appVersion }}</em>
         </div>
       </div>
 

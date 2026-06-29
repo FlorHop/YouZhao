@@ -118,6 +118,15 @@ textarea {
   font-size: 12px;
 }
 
+.brand-copy em {
+  display: block;
+  margin-top: 4px;
+  color: rgba(238, 242, 243, 0.72);
+  font-size: 11px;
+  font-style: normal;
+  line-height: 1;
+}
+
 .side-nav.collapsed .brand-copy {
   display: none;
 }

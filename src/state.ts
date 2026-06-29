@@ -3,8 +3,10 @@ import {
   type AdminSnapshot,
   clearAuthToken,
   createBlueprintGroupApi,
+  createMcpTokenApi,
   createUserApi,
   deleteBlueprintGroupApi,
+  deleteMcpTokenApi,
   deleteUserApi,
   getAuthToken,
   getAdminUsersApi,
@@ -19,6 +21,8 @@ import {
   setAuthToken,
   toDemo,
   updateBlueprintApi,
+  updateMcpTokenApi,
+  updateUserPermissionsApi,
   updateUserApi
 } from './api';
 import {
@@ -407,6 +411,36 @@ export function useAppState() {
     state.demoPermissions.push(...permissions);
   }
 
+  async function updateUserPermissions(
+    userId: string,
+    nextFunctionPermissions: Array<Omit<FunctionPermission, 'userId'>>,
+    nextDemoPermissions: Array<Omit<DemoPermission, 'userId'>>
+  ) {
+    if (getAuthToken()) {
+      const response = await updateUserPermissionsApi(userId, {
+        functionPermissions: nextFunctionPermissions,
+        blueprintPermissions: nextDemoPermissions
+      });
+      applyAdminSnapshot(response.admin);
+      return;
+    }
+
+    state.functionPermissions = state.functionPermissions.filter((item) => item.userId !== userId);
+    state.functionPermissions.push(
+      ...nextFunctionPermissions.map((permission) => ({
+        ...permission,
+        userId
+      }))
+    );
+    setDemoPermissions(
+      userId,
+      nextDemoPermissions.map((permission) => ({
+        ...permission,
+        userId
+      }))
+    );
+  }
+
   function getFunctionLevel(userId: string, module: ModuleKey) {
     return state.functionPermissions.find((item) => item.userId === userId && item.module === module)?.level ?? null;
   }
@@ -415,12 +449,18 @@ export function useAppState() {
     return state.demoPermissions.filter((item) => item.userId === userId);
   }
 
-  function createMcpToken(payload: Pick<McpToken, 'name' | 'boundUserId' | 'expiresAt'>) {
+  async function createMcpToken(payload: Pick<McpToken, 'name' | 'boundUserId' | 'expiresAt'>) {
     const name = payload.name.trim();
     if (!name) throw new Error('Token 名称不能为空');
     if (!currentUser.value || currentUser.value.id !== payload.boundUserId) throw new Error('Token 只能绑定当前用户');
     if (!hasFunctionPermission('demo-preview', 'manage')) throw new Error('仅蓝图管理者可以创建 Token');
     if (!state.users.some((user) => user.id === payload.boundUserId)) throw new Error('绑定用户不存在');
+
+    if (getAuthToken()) {
+      const response = await createMcpTokenApi({ name, expiresAt: payload.expiresAt });
+      applyAdminSnapshot(response.admin);
+      return response.token;
+    }
 
     const randomPart = Math.random().toString(36).slice(2, 10);
     const suffix = randomPart.slice(-4);
@@ -438,13 +478,23 @@ export function useAppState() {
     return `yz_mcp_${randomPart}_${Date.now()}`;
   }
 
-  function setMcpTokenStatus(tokenId: string, status: McpToken['status']) {
+  async function setMcpTokenStatus(tokenId: string, status: McpToken['status']) {
+    if (getAuthToken()) {
+      const response = await updateMcpTokenApi(tokenId, { status });
+      applyAdminSnapshot(response.admin);
+      return;
+    }
     const token = state.mcpTokens.find((item) => item.id === tokenId);
     if (!token) throw new Error('Token 不存在');
     token.status = status;
   }
 
-  function deleteMcpToken(tokenId: string) {
+  async function deleteMcpToken(tokenId: string) {
+    if (getAuthToken()) {
+      const response = await deleteMcpTokenApi(tokenId);
+      applyAdminSnapshot(response.admin);
+      return;
+    }
     state.mcpTokens = state.mcpTokens.filter((item) => item.id !== tokenId);
   }
 
@@ -471,6 +521,7 @@ export function useAppState() {
     updateUser,
     deleteUser,
     resetUserPassword,
+    updateUserPermissions,
     setFunctionPermission,
     setDemoPermissions,
     getFunctionLevel,
