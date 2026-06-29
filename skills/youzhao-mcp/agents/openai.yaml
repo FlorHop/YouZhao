@@ -1,0 +1,7 @@
+interface:
+  display_name: "有招蓝图 MCP"
+  short_description: "读取、发布和更新有招蓝图产物"
+  default_prompt: "Use $youzhao-mcp to publish or inspect a YouZhao blueprint artifact."
+
+policy:
+  allow_implicit_invocation: true

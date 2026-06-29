@@ -8,7 +8,7 @@
 - 蓝图卡片信息维护与分组变更。
 - 用户管理、密码重置、功能权限与蓝图权限。
 - MCP Token 管理入口。
-- Agent 通过 MCP HTTP 工具接口读取蓝图、读取产物、发布蓝图版本。
+- Agent 通过 MCP Server 读取蓝图、读取产物、发布蓝图版本。
 - 蓝图 HTML 与 Markdown 产物落盘存储。
 
 ## 本地启动
@@ -57,6 +57,49 @@ npm run dev
 | `yz_mcp_dev_admin` | 读取、发布 |
 | `yz_mcp_dev_publish` | 读取、发布 |
 | `yz_mcp_dev_viewer` | 读取 |
+
+## MCP Server
+
+有招提供 stdio MCP Server：
+
+```bash
+YOUZHAO_API_BASE=http://127.0.0.1:4174 \
+YOUZHAO_MCP_TOKEN=yz_mcp_dev_admin \
+node server/mcp-server.mjs
+```
+
+MCP 客户端配置示例：
+
+```json
+{
+  "mcpServers": {
+    "youzhao": {
+      "command": "node",
+      "args": ["/opt/youzhao/app/server/mcp-server.mjs"],
+      "env": {
+        "YOUZHAO_API_BASE": "http://127.0.0.1:4174",
+        "YOUZHAO_MCP_TOKEN": "your_mcp_token"
+      }
+    }
+  }
+}
+```
+
+可用工具：
+
+- `youzhao.list_blueprint_groups`
+- `youzhao.list_blueprints`
+- `youzhao.get_blueprint`
+- `youzhao.get_blueprint_artifact`
+- `youzhao.publish_blueprint`
+
+验证：
+
+```bash
+YOUZHAO_API_BASE=http://127.0.0.1:4174 \
+YOUZHAO_MCP_TOKEN=yz_mcp_dev_admin \
+node skills/youzhao-mcp/scripts/youzhao_mcp_smoke_test.mjs server/mcp-server.mjs
+```
 
 ## 构建
 
@@ -296,5 +339,5 @@ icon/       Logo 原始文件
 ## 重要限制
 
 - 当前版本后端结构化数据仍为内存模型。
-- 当前 MCP 接口是 HTTP 工具接口模拟，不是完整 MCP JSON-RPC transport。
+- 当前 MCP Server 是 stdio transport，内部复用后端蓝图工具接口。
 - 单机生产版 Docker Compose、数据库迁移和 CLI 升级脚本仍在后续建设中。
