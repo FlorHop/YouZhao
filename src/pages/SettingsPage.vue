@@ -5,7 +5,6 @@ import { useToast } from 'primevue/usetoast';
 import Button from 'primevue/button';
 import Checkbox from 'primevue/checkbox';
 import Column from 'primevue/column';
-import ConfirmDialog from 'primevue/confirmdialog';
 import DataTable from 'primevue/datatable';
 import Dialog from 'primevue/dialog';
 import DatePicker from 'primevue/datepicker';
@@ -276,7 +275,6 @@ function confirmDeleteToken(token: McpToken) {
 </script>
 
 <template>
-  <ConfirmDialog />
   <section v-if="canManageSettings" class="page-panel">
     <div class="page-header">
       <div>

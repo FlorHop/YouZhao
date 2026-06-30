@@ -51,6 +51,7 @@ export const demosSeed: Demo[] = [
     summary: '展示招商线索、在谈项目、签约金额与落地进展。',
     tags: ['招商', '驾驶舱', '大屏', '项目'],
     groupId: 'group_invest',
+    status: 'active',
     createdAt: '2026-06-12 09:30',
     updatedAt: '2026-06-12 09:30',
     versions: [
@@ -84,6 +85,7 @@ export const demosSeed: Demo[] = [
     summary: '面向领导驾驶舱的城市运行态势、事件、指标和预警总览。',
     tags: ['城市治理', '态势感知', '预警'],
     groupId: 'group_city',
+    status: 'active',
     createdAt: '2026-06-12 09:35',
     updatedAt: '2026-06-12 09:35',
     versions: [
@@ -117,6 +119,7 @@ export const demosSeed: Demo[] = [
     summary: '展示项目阶段、风险、评审、原型版本和交付物状态。',
     tags: ['交付', '项目管理', '看板'],
     groupId: defaultGroupId,
+    status: 'active',
     createdAt: '2026-06-12 09:40',
     updatedAt: '2026-06-12 09:40',
     versions: [

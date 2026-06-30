@@ -17,7 +17,7 @@ const maxHtmlBytes = 2 * 1024 * 1024;
 const maxMarkdownBytes = 512 * 1024;
 
 const defaultGroupId = 'group_default';
-const appVersion = '1.0.0';
+const appVersion = '1.1.1';
 
 let users = [
   {
@@ -68,6 +68,7 @@ let blueprints = [
     summary: '展示招商线索、在谈项目、签约金额与落地进展。',
     tags: ['招商', '驾驶舱', '大屏', '项目'],
     groupId: 'group_invest',
+    status: 'active',
     createdAt: '2026-06-12 09:30',
     updatedAt: '2026-06-12 09:30',
     versions: [
@@ -101,6 +102,7 @@ let blueprints = [
     summary: '面向领导驾驶舱的城市运行态势、事件、指标和预警总览。',
     tags: ['城市治理', '态势感知', '预警'],
     groupId: 'group_city',
+    status: 'active',
     createdAt: '2026-06-12 09:35',
     updatedAt: '2026-06-12 09:35',
     versions: [
@@ -123,6 +125,7 @@ let blueprints = [
     summary: '展示项目阶段、风险、评审、原型版本和交付物状态。',
     tags: ['交付', '项目管理', '看板'],
     groupId: defaultGroupId,
+    status: 'active',
     createdAt: '2026-06-12 09:40',
     updatedAt: '2026-06-12 09:40',
     versions: [
@@ -210,6 +213,7 @@ function publicBlueprint(blueprint) {
     summary: blueprint.summary,
     tags: blueprint.tags,
     groupId: blueprint.groupId,
+    status: blueprint.status ?? 'active',
     latestVersion: latest?.version ?? null,
     updatedAt: blueprint.updatedAt
   };
@@ -288,6 +292,9 @@ function loadPersistedState() {
   mcpTokens = Array.isArray(state.mcpTokens) ? state.mcpTokens : mcpTokens;
   publishResultsByKey = entriesToMap(state.publishResultsByKey);
   auditLogs = Array.isArray(state.auditLogs) ? state.auditLogs : auditLogs;
+  blueprints.forEach((blueprint) => {
+    if (!blueprint.status) blueprint.status = 'active';
+  });
 }
 
 function sortGroups(items) {
@@ -316,6 +323,9 @@ function canAccessGroup(userId, groupId) {
 }
 
 function canAccessBlueprint(userId, blueprint) {
+  if ((blueprint.status ?? 'active') !== 'active' && !hasModulePermission(userId, 'demo-preview', 'manage')) {
+    return false;
+  }
   if (!hasModulePermission(userId, 'demo-preview', 'view')) return false;
   return blueprintPermissions.some((permission) => {
     if (permission.userId !== userId) return false;
@@ -499,11 +509,16 @@ function validateTags(tags) {
 }
 
 function validateBlueprintPatch(body) {
+  const status = validateText(body.status, 'status', { max: 20 });
+  if (status && !['active', 'archived'].includes(status)) {
+    throw apiError(400, 'INVALID_ARGUMENT', 'status 仅支持 active 或 archived');
+  }
   return {
     name: validateText(body.name, 'name', { max: 80 }),
     summary: validateText(body.summary, 'summary', { max: 200 }),
     tags: body.tags === undefined ? undefined : validateTags(body.tags),
-    groupId: validateText(body.groupId, 'groupId', { max: 64 })
+    groupId: validateText(body.groupId, 'groupId', { max: 64 }),
+    status
   };
 }
 
@@ -636,9 +651,18 @@ function listBlueprints(ctx, params) {
   const groupId = validateText(params.groupId, 'groupId', { max: 64 });
   const keyword = validateText(params.keyword, 'keyword', { max: 50 });
   const tag = validateText(params.tag, 'tag', { max: 24 });
+  const status = validateText(params.status, 'status', { max: 20 }) ?? 'active';
+  if (!['active', 'archived', 'all'].includes(status)) {
+    throw apiError(400, 'INVALID_ARGUMENT', 'status 仅支持 active、archived 或 all');
+  }
+  if (status !== 'active' && !hasModulePermission(ctx.user.id, 'demo-preview', 'manage')) {
+    throw apiError(403, 'FORBIDDEN', '仅蓝图管理者可查看归档蓝图');
+  }
   const limit = Math.min(Math.max(Number(params.limit ?? 20), 1), 100);
   const offset = Math.max(Number(params.offset ?? 0), 0);
   const filtered = accessibleBlueprints(ctx.user.id).filter((blueprint) => {
+    const blueprintStatus = blueprint.status ?? 'active';
+    if (status !== 'all' && blueprintStatus !== status) return false;
     if (groupId && blueprint.groupId !== groupId) return false;
     if (tag && !blueprint.tags.includes(tag)) return false;
     if (keyword && !`${blueprint.name} ${blueprint.summary}`.includes(keyword)) return false;
@@ -1182,6 +1206,7 @@ async function route(req, res) {
       groupId: url.searchParams.get('groupId') ?? undefined,
       keyword: url.searchParams.get('keyword') ?? undefined,
       tag: url.searchParams.get('tag') ?? undefined,
+      status: url.searchParams.get('status') ?? undefined,
       limit: url.searchParams.get('limit') ?? undefined,
       offset: url.searchParams.get('offset') ?? undefined
     }));
@@ -1215,6 +1240,7 @@ async function route(req, res) {
     if (patch.name !== undefined) blueprint.name = patch.name;
     if (patch.summary !== undefined) blueprint.summary = patch.summary;
     if (patch.tags !== undefined) blueprint.tags = patch.tags;
+    if (patch.status !== undefined) blueprint.status = patch.status;
     blueprint.updatedAt = nowIso();
 
     persistState();
@@ -1222,6 +1248,30 @@ async function route(req, res) {
       ...publicBlueprint(blueprint),
       versions: blueprint.versions.map(publicVersion)
     });
+  }
+
+  if (req.method === 'DELETE' && blueprintMatch) {
+    const session = authenticateSession(req);
+    if (!session) throw apiError(401, 'UNAUTHENTICATED', '未登录');
+    requireBlueprintManage(session.user);
+    const blueprintId = decodeURIComponent(blueprintMatch[1]);
+    const blueprint = findBlueprintOrThrow(session.user, blueprintId);
+    const index = blueprints.findIndex((item) => item.id === blueprint.id);
+    if (index < 0) throw apiError(404, 'BLUEPRINT_NOT_FOUND', '蓝图不存在或不可访问');
+
+    blueprints.splice(index, 1);
+    for (let i = blueprintPermissions.length - 1; i >= 0; i -= 1) {
+      if (blueprintPermissions[i].targetType === 'demo' && blueprintPermissions[i].targetId === blueprint.id) {
+        blueprintPermissions.splice(i, 1);
+      }
+    }
+    for (const [key, result] of publishResultsByKey.entries()) {
+      if (result?.blueprintId === blueprint.id) publishResultsByKey.delete(key);
+    }
+    await rm(path.join(artifactRoot, blueprint.id), { recursive: true, force: true }).catch(() => undefined);
+
+    persistState();
+    return sendJson(res, 200, { id: blueprint.id });
   }
 
   const artifactMatch = pathname.match(/^\/api\/blueprints\/([^/]+)\/artifact$/);

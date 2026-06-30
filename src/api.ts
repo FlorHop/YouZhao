@@ -33,6 +33,7 @@ interface BlueprintListItem {
   summary: string;
   tags: string[];
   groupId: string;
+  status: Demo['status'];
   latestVersion: string | null;
   updatedAt: string;
 }
@@ -128,8 +129,9 @@ export async function reorderBlueprintGroupsApi(groupIds: string[]) {
   });
 }
 
-export async function getBlueprintsApi() {
-  return request<{ items: BlueprintListItem[]; total: number }>('/api/blueprints?limit=100');
+export async function getBlueprintsApi(status: 'active' | 'archived' | 'all' = 'active') {
+  const params = new URLSearchParams({ limit: '100', status });
+  return request<{ items: BlueprintListItem[]; total: number }>(`/api/blueprints?${params.toString()}`);
 }
 
 export async function getBlueprintDetailApi(blueprintId: string) {
@@ -138,11 +140,17 @@ export async function getBlueprintDetailApi(blueprintId: string) {
 
 export async function updateBlueprintApi(
   blueprintId: string,
-  payload: Partial<Pick<Demo, 'name' | 'summary' | 'tags' | 'groupId'>>
+  payload: Partial<Pick<Demo, 'name' | 'summary' | 'tags' | 'groupId' | 'status'>>
 ) {
   return request<BlueprintDetail>(`/api/blueprints/${encodeURIComponent(blueprintId)}`, {
     method: 'PATCH',
     body: JSON.stringify(payload)
+  });
+}
+
+export async function deleteBlueprintApi(blueprintId: string) {
+  return request<{ id: string }>(`/api/blueprints/${encodeURIComponent(blueprintId)}`, {
+    method: 'DELETE'
   });
 }
 
@@ -236,6 +244,7 @@ export function toDemo(detail: BlueprintDetail): Demo {
     summary: detail.summary,
     tags: detail.tags,
     groupId: detail.groupId,
+    status: detail.status ?? 'active',
     versions: detail.versions.map((version) => toDemoVersion(detail.id, version)),
     createdAt: detail.updatedAt,
     updatedAt: detail.updatedAt

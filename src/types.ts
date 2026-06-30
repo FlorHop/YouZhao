@@ -2,6 +2,7 @@ export type ModuleKey = 'demo-preview' | 'system-settings';
 export type PermissionLevel = 'view' | 'manage';
 export type DemoPermissionTarget = 'group' | 'demo';
 export type UserStatus = 'enabled' | 'disabled';
+export type DemoStatus = 'active' | 'archived';
 export type VersionStatus = 'available' | 'unavailable';
 export type McpTokenStatus = 'enabled' | 'disabled';
 
@@ -31,6 +32,7 @@ export interface Demo {
   summary: string;
   tags: string[];
   groupId: string;
+  status: DemoStatus;
   versions: DemoVersion[];
   createdAt: string;
   updatedAt: string;

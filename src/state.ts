@@ -4,6 +4,7 @@ import {
   clearAuthToken,
   createBlueprintGroupApi,
   createMcpTokenApi,
+  deleteBlueprintApi,
   createUserApi,
   deleteBlueprintGroupApi,
   deleteMcpTokenApi,
@@ -134,7 +135,8 @@ export function useAppState() {
     if (!currentUser.value) return [];
     if (!hasFunctionPermission('demo-preview', 'view')) return [];
     const demoIds = getUserVisibleDemoIds(currentUser.value.id);
-    return state.demos.filter((demo) => demoIds.has(demo.id));
+    const canManage = hasFunctionPermission('demo-preview', 'manage');
+    return state.demos.filter((demo) => (canManage || demo.status !== 'archived') && demoIds.has(demo.id));
   });
 
   const visibleGroups = computed(() => {
@@ -184,7 +186,11 @@ export function useAppState() {
     await bootstrapSession();
     if (!getAuthToken() || !currentUser.value || !hasFunctionPermission('demo-preview', 'view')) return;
 
-    const [groupsResponse, blueprintsResponse] = await Promise.all([getBlueprintGroupsApi(), getBlueprintsApi()]);
+    const blueprintStatus = hasFunctionPermission('demo-preview', 'manage') ? 'all' : 'active';
+    const [groupsResponse, blueprintsResponse] = await Promise.all([
+      getBlueprintGroupsApi(),
+      getBlueprintsApi(blueprintStatus)
+    ]);
     state.groups = groupsResponse.items.map(({ blueprintCount, ...group }) => group);
 
     const details = await Promise.all(blueprintsResponse.items.map((blueprint) => getBlueprintDetailApi(blueprint.id)));
@@ -275,7 +281,10 @@ export function useAppState() {
     });
   }
 
-  async function updateDemo(demoId: string, patch: Partial<Pick<Demo, 'name' | 'summary' | 'tags' | 'groupId'>>) {
+  async function updateDemo(
+    demoId: string,
+    patch: Partial<Pick<Demo, 'name' | 'summary' | 'tags' | 'groupId' | 'status'>>
+  ) {
     const demo = state.demos.find((item) => item.id === demoId);
     if (!demo) throw new Error('蓝图不存在');
     if (getAuthToken()) {
@@ -287,6 +296,31 @@ export function useAppState() {
       updatedAt: new Date().toLocaleString('zh-CN', { hour12: false })
     });
     return demo;
+  }
+
+  async function archiveDemo(demoId: string) {
+    return updateDemo(demoId, { status: 'archived' });
+  }
+
+  async function restoreDemo(demoId: string) {
+    return updateDemo(demoId, { status: 'active' });
+  }
+
+  async function deleteDemo(demoId: string) {
+    const demo = state.demos.find((item) => item.id === demoId);
+    if (!demo) throw new Error('蓝图不存在');
+    if (getAuthToken()) {
+      await deleteBlueprintApi(demoId);
+      state.demos = state.demos.filter((item) => item.id !== demoId);
+      state.demoPermissions = state.demoPermissions.filter(
+        (permission) => !(permission.targetType === 'demo' && permission.targetId === demoId)
+      );
+      return;
+    }
+    state.demos = state.demos.filter((item) => item.id !== demoId);
+    state.demoPermissions = state.demoPermissions.filter(
+      (permission) => !(permission.targetType === 'demo' && permission.targetId === demoId)
+    );
   }
 
   async function createUser(payload: Omit<User, 'id' | 'createdAt'>, password = '123456') {
@@ -517,6 +551,9 @@ export function useAppState() {
     deleteGroup,
     reorderGroups,
     updateDemo,
+    archiveDemo,
+    restoreDemo,
+    deleteDemo,
     createUser,
     updateUser,
     deleteUser,

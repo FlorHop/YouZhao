@@ -4,7 +4,6 @@ import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
 import Button from 'primevue/button';
 import Chip from 'primevue/chip';
-import ConfirmDialog from 'primevue/confirmdialog';
 import Dialog from 'primevue/dialog';
 import InputText from 'primevue/inputtext';
 import Menu from 'primevue/menu';
@@ -34,7 +33,8 @@ const editForm = reactive({
 });
 const queryForm = reactive({
   keyword: '',
-  groupId: ''
+  groupId: '',
+  status: 'active' as 'active' | 'archived' | 'all'
 });
 
 const canViewDemo = computed(() => app.hasFunctionPermission('demo-preview', 'view'));
@@ -59,17 +59,27 @@ onMounted(() => {
 const groupOptions = computed(() =>
   [{ id: '', name: '全部分组' }, ...app.visibleGroups.value]
 );
+const statusOptions = computed(() => [
+  { label: '展示中', value: 'active' },
+  ...(canManageDemo.value
+    ? [
+        { label: '已归档', value: 'archived' },
+        { label: '全部状态', value: 'all' }
+      ]
+    : [])
+]);
 
 const filteredDemos = computed(() => {
   const keyword = queryForm.keyword.trim().toLowerCase();
   return app.visibleDemos.value.filter((demo) => {
     const matchesGroup = !queryForm.groupId || demo.groupId === queryForm.groupId;
+    const matchesStatus = queryForm.status === 'all' || demo.status === queryForm.status;
     const matchesKeyword =
       !keyword ||
       demo.name.toLowerCase().includes(keyword) ||
       demo.summary.toLowerCase().includes(keyword) ||
       demo.tags.some((tag) => tag.toLowerCase().includes(keyword));
-    return matchesGroup && matchesKeyword;
+    return matchesGroup && matchesStatus && matchesKeyword;
   });
 });
 
@@ -103,6 +113,27 @@ const contextItems = computed(() => [
         toast.add({ severity: 'error', summary: '移动失败', detail: (error as Error).message, life: 2800 });
       }
     }
+  },
+  {
+    label: editingDemo.value?.status === 'archived' ? '恢复蓝图' : '归档蓝图',
+    icon: editingDemo.value?.status === 'archived' ? 'pi pi-history' : 'pi pi-archive',
+    disabled: !canManageDemo.value || !editingDemo.value,
+    command: () => {
+      if (!editingDemo.value) return;
+      if (editingDemo.value.status === 'archived') {
+        confirmRestoreDemo(editingDemo.value);
+      } else {
+        confirmArchiveDemo(editingDemo.value);
+      }
+    }
+  },
+  {
+    label: '删除蓝图',
+    icon: 'pi pi-trash',
+    disabled: !canManageDemo.value || !editingDemo.value,
+    command: () => {
+      if (editingDemo.value) confirmDeleteDemo(editingDemo.value);
+    }
   }
 ]);
 
@@ -115,6 +146,10 @@ function getSelectedVersionId(demo: Demo) {
 }
 
 function openDemo(demo: Demo) {
+  if (demo.status === 'archived') {
+    toast.add({ severity: 'warn', summary: '蓝图已归档', detail: '恢复后才可打开预览', life: 2600 });
+    return;
+  }
   const versionId = getSelectedVersionId(demo);
   const version = demo.versions.find((item) => item.id === versionId);
 
@@ -140,6 +175,7 @@ async function createGroup() {
 function resetQuery() {
   queryForm.keyword = '';
   queryForm.groupId = '';
+  queryForm.status = 'active';
 }
 
 function confirmDeleteGroup(groupId: string) {
@@ -214,6 +250,62 @@ async function saveDemoEdit() {
   }
 }
 
+function confirmArchiveDemo(demo: Demo) {
+  confirm.require({
+    message: `归档后“${demo.name}”将不再出现在默认蓝图展示列表，但可在已归档中恢复。是否继续？`,
+    header: '归档蓝图',
+    icon: 'pi pi-archive',
+    rejectLabel: '取消',
+    acceptLabel: '归档',
+    accept: async () => {
+      try {
+        await app.archiveDemo(demo.id);
+        toast.add({ severity: 'success', summary: '蓝图已归档', life: 2200 });
+      } catch (error) {
+        toast.add({ severity: 'error', summary: '归档失败', detail: (error as Error).message, life: 2800 });
+      }
+    }
+  });
+}
+
+function confirmRestoreDemo(demo: Demo) {
+  confirm.require({
+    message: `恢复后“${demo.name}”将重新进入蓝图展示列表。是否继续？`,
+    header: '恢复蓝图',
+    icon: 'pi pi-history',
+    rejectLabel: '取消',
+    acceptLabel: '恢复',
+    accept: async () => {
+      try {
+        await app.restoreDemo(demo.id);
+        toast.add({ severity: 'success', summary: '蓝图已恢复', life: 2200 });
+      } catch (error) {
+        toast.add({ severity: 'error', summary: '恢复失败', detail: (error as Error).message, life: 2800 });
+      }
+    }
+  });
+}
+
+function confirmDeleteDemo(demo: Demo) {
+  confirm.require({
+    message: `删除后“${demo.name}”及其已发布产物将不可恢复。建议先归档确认无误后再删除。是否继续？`,
+    header: '删除蓝图',
+    icon: 'pi pi-exclamation-triangle',
+    rejectLabel: '取消',
+    acceptLabel: '删除',
+    acceptClass: 'p-button-danger',
+    accept: async () => {
+      try {
+        await app.deleteDemo(demo.id);
+        delete selectedVersions[demo.id];
+        toast.add({ severity: 'success', summary: '蓝图已删除', life: 2200 });
+      } catch (error) {
+        toast.add({ severity: 'error', summary: '删除失败', detail: (error as Error).message, life: 2800 });
+      }
+    }
+  });
+}
+
 function onDragStart(demo: Demo) {
   if (!canManageDemo.value) return;
   draggedDemoId.value = demo.id;
@@ -240,7 +332,6 @@ async function onDrop(groupId: string) {
 </script>
 
 <template>
-  <ConfirmDialog />
   <Menu ref="contextMenu" :model="contextItems" popup />
   <section v-if="canViewDemo" class="page-panel demo-page">
     <div class="page-header">
@@ -282,6 +373,15 @@ async function onDrop(groupId: string) {
         optionValue="id"
         class="group-filter"
         aria-label="筛选分组"
+      />
+      <Select
+        v-if="canManageDemo"
+        v-model="queryForm.status"
+        :options="statusOptions"
+        optionLabel="label"
+        optionValue="value"
+        class="status-filter"
+        aria-label="筛选蓝图状态"
       />
       <Button label="重置" icon="pi pi-filter-slash" severity="secondary" outlined @click="resetQuery" />
     </div>
@@ -343,6 +443,7 @@ async function onDrop(groupId: string) {
             v-for="demo in demos"
             :key="demo.id"
             class="demo-card"
+            :class="{ archived: demo.status === 'archived' }"
             :draggable="canManageDemo"
             @dragstart="onDragStart(demo)"
             @contextmenu.prevent="openContextMenu($event, demo)"
@@ -354,7 +455,10 @@ async function onDrop(groupId: string) {
               </div>
               <div class="demo-heading">
                 <span>{{ demo.name }}</span>
-                <small>{{ demo.versions.length }} 个版本</small>
+                <small>
+                  {{ demo.versions.length }} 个版本
+                  <Tag v-if="demo.status === 'archived'" value="已归档" severity="secondary" />
+                </small>
               </div>
               <Button
                 v-if="canManageDemo"
@@ -435,7 +539,7 @@ async function onDrop(groupId: string) {
 <style scoped>
 .query-panel {
   display: grid;
-  grid-template-columns: minmax(280px, 1fr) 220px auto;
+  grid-template-columns: minmax(280px, 1fr) 220px 160px auto;
   gap: 10px;
   align-items: center;
   margin-bottom: 16px;
@@ -464,7 +568,8 @@ async function onDrop(groupId: string) {
   padding-left: 36px;
 }
 
-.group-filter {
+.group-filter,
+.status-filter {
   width: 100%;
 }
 
@@ -550,6 +655,16 @@ async function onDrop(groupId: string) {
   transform: translateY(-1px);
 }
 
+.demo-card.archived {
+  border-style: dashed;
+  background: #f8fafc;
+  opacity: 0.82;
+}
+
+.demo-card.archived:hover {
+  border-color: rgba(100, 116, 139, 0.44);
+}
+
 .demo-card-top {
   display: flex;
   align-items: center;
@@ -588,6 +703,9 @@ async function onDrop(groupId: string) {
 }
 
 .demo-heading small {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin-top: 4px;
   color: var(--app-muted);
   font-size: 12px;
