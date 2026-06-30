@@ -77,6 +77,10 @@ function changeVersion(versionId: string) {
   });
 }
 
+function returnToBlueprints() {
+  router.push('/blueprints');
+}
+
 function startDrawerResize(event: MouseEvent) {
   isResizingDrawer.value = true;
   document.body.style.cursor = 'col-resize';
@@ -107,6 +111,15 @@ onBeforeUnmount(stopDrawerResize);
 <template>
   <main v-if="blueprint && selectedVersion" class="preview-page">
     <iframe class="preview-frame" :src="selectedVersion.artifactUrl" :title="`${blueprint.name} ${selectedVersion.version}`" />
+
+    <Button
+      class="return-button"
+      label="返回蓝图"
+      icon="pi pi-arrow-left"
+      size="small"
+      severity="secondary"
+      @click="returnToBlueprints"
+    />
 
     <section class="floating-blueprint-card" :class="{ collapsed }">
       <button class="floating-toggle" type="button" @click="collapsed = !collapsed">
@@ -179,6 +192,17 @@ onBeforeUnmount(stopDrawerResize);
   height: 100%;
   border: 0;
   background: #ffffff;
+}
+
+.return-button {
+  position: fixed !important;
+  top: 14px;
+  left: 14px;
+  z-index: 25;
+  border-color: rgba(215, 221, 225, 0.92) !important;
+  background: rgba(251, 252, 252, 0.94) !important;
+  box-shadow: 0 8px 24px rgba(41, 52, 61, 0.14);
+  backdrop-filter: blur(10px);
 }
 
 .floating-blueprint-card {

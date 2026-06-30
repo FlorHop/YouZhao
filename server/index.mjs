@@ -17,7 +17,7 @@ const maxHtmlBytes = 2 * 1024 * 1024;
 const maxMarkdownBytes = 512 * 1024;
 
 const defaultGroupId = 'group_default';
-const appVersion = '1.1.1';
+const appVersion = '1.2.0';
 
 let users = [
   {
@@ -320,6 +320,17 @@ function canAccessGroup(userId, groupId) {
   return blueprintPermissions.some(
     (permission) => permission.userId === userId && permission.targetType === 'group' && permission.targetId === groupId
   );
+}
+
+function grantGroupToBlueprintManagers(groupId) {
+  const managerIds = functionPermissions
+    .filter((permission) => permission.module === 'demo-preview' && permission.level === 'manage')
+    .map((permission) => permission.userId);
+  managerIds.forEach((userId) => {
+    if (!canAccessGroup(userId, groupId)) {
+      blueprintPermissions.push({ userId, targetType: 'group', targetId: groupId });
+    }
+  });
 }
 
 function canAccessBlueprint(userId, blueprint) {
@@ -1139,7 +1150,7 @@ async function route(req, res) {
       createdAt: nowIso()
     };
     groups.push(group);
-    blueprintPermissions.push({ userId: session.user.id, targetType: 'group', targetId: group.id });
+    grantGroupToBlueprintManagers(group.id);
     persistState();
     return sendJson(res, 201, listBlueprintGroups({ token: { scopes: ['read:blueprint'] }, user: session.user }, {
       includeEmpty: true

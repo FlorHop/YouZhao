@@ -237,13 +237,24 @@ export function useAppState() {
       return;
     }
 
-    state.groups.push({
+    const group = {
       id: `group_${Date.now()}`,
       name: trimmed,
       isDefault: false,
       order: Math.max(...state.groups.map((group) => group.order), 0) + 10,
       createdAt: new Date().toLocaleString('zh-CN', { hour12: false })
-    });
+    };
+    state.groups.push(group);
+    state.functionPermissions
+      .filter((permission) => permission.module === 'demo-preview' && permission.level === 'manage')
+      .forEach((permission) => {
+        const exists = state.demoPermissions.some(
+          (item) => item.userId === permission.userId && item.targetType === 'group' && item.targetId === group.id
+        );
+        if (!exists) {
+          state.demoPermissions.push({ userId: permission.userId, targetType: 'group', targetId: group.id });
+        }
+      });
   }
 
   async function deleteGroup(groupId: string) {
