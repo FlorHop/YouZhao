@@ -15,6 +15,9 @@ const artifactRoot = path.join(dataDir, 'previews');
 const maxJsonBytes = 5 * 1024 * 1024;
 const maxHtmlBytes = 2 * 1024 * 1024;
 const maxMarkdownBytes = 512 * 1024;
+const embedSecret = process.env.YOUZHAO_EMBED_SECRET ?? 'youzhao_embed_dev_secret';
+const embedTicketTtlMs = Number(process.env.YOUZHAO_EMBED_TICKET_TTL_MS ?? 60_000);
+const embedAppBaseUrl = process.env.YOUZHAO_EMBED_APP_BASE_URL ?? '';
 
 const defaultGroupId = 'group_default';
 const appVersion = '1.2.2';
@@ -119,6 +122,7 @@ let blueprintPermissions = [];
 let mcpTokens = [];
 
 const sessions = new Map();
+const embedTickets = new Map();
 let publishResultsByKey = new Map();
 let auditLogs = [];
 
@@ -573,6 +577,78 @@ function validateMcpTokenStatus(status) {
   return nextStatus;
 }
 
+function validateRedirectPath(value) {
+  const redirect = validateText(value, 'redirect', { max: 300 }) ?? '/blueprints';
+  if (!redirect.startsWith('/') || redirect.startsWith('//') || redirect.includes('\\')) {
+    throw apiError(400, 'INVALID_ARGUMENT', 'redirect 必须是站内路径');
+  }
+  return redirect;
+}
+
+function validateEmbedGroupIds(body) {
+  const rawGroupIds = Array.isArray(body.groupIds) ? body.groupIds : [body.groupId];
+  const groupIds = [...new Set(rawGroupIds.map((item) => validateText(item, 'groupId', { required: true, max: 64 })))];
+  if (groupIds.length === 0) throw apiError(400, 'INVALID_ARGUMENT', '至少选择一个分组');
+  if (groupIds.length > 20) throw apiError(400, 'INVALID_ARGUMENT', '单个 ticket 最多授权 20 个分组');
+  const unknown = groupIds.find((groupId) => !groups.some((group) => group.id === groupId));
+  if (unknown) throw apiError(400, 'INVALID_ARGUMENT', `分组不存在：${unknown}`);
+  return groupIds;
+}
+
+function authenticateEmbedTicketCreator(req) {
+  const auth = req.headers.authorization ?? '';
+  const bearer = auth.startsWith('Bearer ') ? auth.slice('Bearer '.length) : '';
+  const headerSecret = req.headers['x-embed-secret'];
+  if (bearer !== embedSecret && headerSecret !== embedSecret) {
+    throw apiError(401, 'UNAUTHENTICATED', 'Embed 创建密钥无效');
+  }
+}
+
+function externalBaseUrl(req) {
+  if (embedAppBaseUrl) return embedAppBaseUrl.replace(/\/+$/, '');
+  const proto = req.headers['x-forwarded-proto'] ?? 'http';
+  const host = req.headers['x-forwarded-host'] ?? req.headers.host ?? `127.0.0.1:${port}`;
+  return `${proto}://${host}`;
+}
+
+function upsertEmbedUser(ticket) {
+  const externalHash = sha256(`${ticket.issuer}:${ticket.externalUserId}`).slice(0, 16);
+  const scopeHash = sha256(ticket.groupIds.join('|')).slice(0, 10);
+  const username = `embed_${externalHash}_${scopeHash}`;
+  let user = users.find((item) => item.username === username);
+  if (!user) {
+    user = {
+      id: `embed_user_${randomUUID().slice(0, 8)}`,
+      username,
+      displayName: ticket.displayName,
+      email: '',
+      phone: '',
+      status: 'enabled',
+      createdAt: nowIso()
+    };
+    users.push(user);
+    credentials.set(username, randomBytes(18).toString('hex'));
+  } else {
+    user.displayName = ticket.displayName;
+    user.status = 'enabled';
+  }
+
+  functionPermissions = functionPermissions.filter(
+    (permission) => !(permission.userId === user.id && permission.module === 'demo-preview')
+  );
+  functionPermissions.push({ userId: user.id, module: 'demo-preview', level: 'view' });
+
+  blueprintPermissions = blueprintPermissions.filter((permission) => permission.userId !== user.id);
+  blueprintPermissions.push(
+    ...ticket.groupIds.map((groupId) => ({
+      userId: user.id,
+      targetType: 'group',
+      targetId: groupId
+    }))
+  );
+  return user;
+}
+
 function adminSnapshot() {
   return {
     users,
@@ -869,6 +945,67 @@ async function route(req, res) {
 
   if (req.method === 'GET' && pathname === '/api/setup/status') {
     return sendJson(res, 200, setupStatus());
+  }
+
+  if (req.method === 'POST' && pathname === '/api/embed/tickets') {
+    if (isSetupRequired()) throw apiError(409, 'SETUP_REQUIRED', '请先完成管理员帐号初始化');
+    authenticateEmbedTicketCreator(req);
+    const body = await parseJson(req);
+    const externalUserId = validateText(body.externalUserId, 'externalUserId', { required: true, max: 120 });
+    const displayName = validateText(body.displayName, 'displayName', { max: 60 }) ?? externalUserId;
+    const issuer = validateText(body.issuer, 'issuer', { max: 60 }) ?? 'external-platform';
+    const groupIds = validateEmbedGroupIds(body);
+    const redirect = validateRedirectPath(body.redirect);
+    const ticket = `yz_embed_${randomBytes(24).toString('hex')}`;
+    const expiresAtMs = Date.now() + embedTicketTtlMs;
+    const ticketRecord = {
+      id: `embed_ticket_${randomUUID().slice(0, 8)}`,
+      issuer,
+      externalUserId,
+      displayName,
+      groupIds,
+      redirect,
+      expiresAtMs,
+      createdAt: nowIso(),
+      usedAt: null
+    };
+    embedTickets.set(sha256(ticket), ticketRecord);
+
+    const embedUrl = new URL('/embed/launch', externalBaseUrl(req));
+    embedUrl.searchParams.set('ticket', ticket);
+    embedUrl.searchParams.set('redirect', redirect);
+    return sendJson(res, 201, {
+      embedUrl: embedUrl.toString(),
+      ticket,
+      expiresAt: new Date(expiresAtMs).toISOString(),
+      groupIds
+    });
+  }
+
+  if (req.method === 'POST' && pathname === '/api/embed/exchange') {
+    if (isSetupRequired()) throw apiError(409, 'SETUP_REQUIRED', '请先完成管理员帐号初始化');
+    const body = await parseJson(req);
+    const rawTicket = validateText(body.ticket, 'ticket', { required: true, max: 120 });
+    const ticketHash = sha256(rawTicket);
+    const ticket = embedTickets.get(ticketHash);
+    if (!ticket) throw apiError(401, 'UNAUTHENTICATED', 'ticket 无效');
+    if (ticket.usedAt) throw apiError(401, 'UNAUTHENTICATED', 'ticket 已使用');
+    if (ticket.expiresAtMs < Date.now()) {
+      embedTickets.delete(ticketHash);
+      throw apiError(401, 'UNAUTHENTICATED', 'ticket 已过期');
+    }
+    const user = upsertEmbedUser(ticket);
+    ticket.usedAt = nowIso();
+    embedTickets.delete(ticketHash);
+    const token = `yz_session_${randomBytes(24).toString('hex')}`;
+    sessions.set(token, { userId: user.id, createdAt: nowIso(), source: 'embed' });
+    persistState();
+    return sendJson(res, 200, {
+      token,
+      user,
+      redirect: ticket.redirect,
+      groupIds: ticket.groupIds
+    });
   }
 
   if (req.method === 'POST' && pathname === '/api/setup/admin') {

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue';
+import { computed, onMounted, reactive, ref, watch } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
-import { useRouter } from 'vue-router';
+import { useRoute, useRouter } from 'vue-router';
 import Button from 'primevue/button';
 import Chip from 'primevue/chip';
 import Dialog from 'primevue/dialog';
@@ -17,6 +17,7 @@ import { useAppState } from '../state';
 const app = useAppState();
 const toast = useToast();
 const confirm = useConfirm();
+const route = useRoute();
 const router = useRouter();
 const contextMenu = ref<InstanceType<typeof Menu> | null>(null);
 const selectedVersions = reactive<Record<string, string>>({});
@@ -57,6 +58,14 @@ async function refreshPageData(showToast = false) {
 onMounted(() => {
   refreshPageData();
 });
+
+watch(
+  () => route.query.groupId,
+  (groupId) => {
+    queryForm.groupId = typeof groupId === 'string' ? groupId : '';
+  },
+  { immediate: true }
+);
 
 const groupOptions = computed(() =>
   [{ id: '', name: '全部分组' }, ...app.visibleGroups.value]

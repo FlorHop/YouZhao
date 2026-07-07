@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router';
 import BlueprintPreviewPage from './pages/BlueprintPreviewPage.vue';
 import DemoPage from './pages/DemoPage.vue';
+import EmbedLaunchPage from './pages/EmbedLaunchPage.vue';
 import ForbiddenPage from './pages/ForbiddenPage.vue';
 import LoginPage from './pages/LoginPage.vue';
 import SettingsPage from './pages/SettingsPage.vue';
@@ -11,6 +12,7 @@ export const router = createRouter({
   routes: [
     { path: '/', redirect: '/blueprints' },
     { path: '/login', component: LoginPage, meta: { public: true } },
+    { path: '/embed/launch', component: EmbedLaunchPage, meta: { public: true, embed: true } },
     { path: '/demo', redirect: '/blueprints' },
     { path: '/blueprints', component: DemoPage, meta: { module: 'demo-preview', level: 'view' } },
     { path: '/blueprints/:id/preview', component: BlueprintPreviewPage, meta: { module: 'demo-preview', level: 'view' } },
@@ -32,6 +34,7 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.public) {
+    if (to.meta.embed) return true;
     if (app.isAuthenticated.value) {
       return app.hasFunctionPermission('demo-preview', 'view') ? '/blueprints' : '/settings';
     }

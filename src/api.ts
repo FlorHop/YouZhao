@@ -16,6 +16,13 @@ interface LoginResponse {
   user: User;
 }
 
+interface EmbedExchangeResponse {
+  token: string;
+  user: User;
+  redirect: string;
+  groupIds: string[];
+}
+
 export interface SetupStatus {
   setupRequired: boolean;
   userCount: number;
@@ -102,6 +109,13 @@ export async function loginApi(username: string, password: string) {
   return request<LoginResponse>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username, password })
+  });
+}
+
+export async function exchangeEmbedTicketApi(ticket: string) {
+  return request<EmbedExchangeResponse>('/api/embed/exchange', {
+    method: 'POST',
+    body: JSON.stringify({ ticket })
   });
 }
 

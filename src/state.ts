@@ -9,6 +9,7 @@ import {
   deleteBlueprintGroupApi,
   deleteMcpTokenApi,
   deleteUserApi,
+  exchangeEmbedTicketApi,
   getAuthToken,
   getAdminUsersApi,
   getBlueprintArtifactApi,
@@ -494,6 +495,19 @@ export function useAppState() {
     localStorage.setItem(authStorageKey, user.id);
   }
 
+  async function exchangeEmbedTicket(ticket: string) {
+    await refreshSetupStatus();
+    if (state.setupRequired) throw new Error('请先完成管理员帐号初始化');
+    const payload = await exchangeEmbedTicketApi(ticket);
+    setAuthToken(payload.token);
+    const me = await getMeApi();
+    applyMe(me);
+    return {
+      redirect: payload.redirect,
+      groupIds: payload.groupIds
+    };
+  }
+
   function logout() {
     currentUserId.value = null;
     clearAuthToken();
@@ -638,6 +652,7 @@ export function useAppState() {
     createMcpToken,
     setMcpTokenStatus,
     deleteMcpToken,
+    exchangeEmbedTicket,
     login,
     logout
   };
