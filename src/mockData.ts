@@ -2,41 +2,9 @@ import type { Demo, DemoGroup, DemoPermission, FunctionPermission, McpToken, Use
 
 export const defaultGroupId = 'group_default';
 
-export const usersSeed: User[] = [
-  {
-    id: 'user_admin',
-    username: 'admin',
-    displayName: '系统管理员',
-    email: 'admin@youzhao.local',
-    phone: '13800000000',
-    status: 'enabled',
-    createdAt: '2026-06-12 09:00'
-  },
-  {
-    id: 'user_demo_manager',
-    username: 'demo.manager',
-    displayName: '蓝图管理者',
-    email: 'manager@youzhao.local',
-    phone: '13800000001',
-    status: 'enabled',
-    createdAt: '2026-06-12 10:00'
-  },
-  {
-    id: 'user_viewer',
-    username: 'viewer',
-    displayName: '蓝图查看者',
-    email: 'viewer@youzhao.local',
-    phone: '13800000002',
-    status: 'enabled',
-    createdAt: '2026-06-12 11:00'
-  }
-];
+export const usersSeed: User[] = [];
 
-export const authCredentialsSeed: Record<string, string> = {
-  admin: 'admin123',
-  'demo.manager': 'demo123',
-  viewer: 'viewer123'
-};
+export const authCredentialsSeed: Record<string, string> = {};
 
 export const groupsSeed: DemoGroup[] = [
   { id: defaultGroupId, name: '默认', isDefault: true, order: 0, createdAt: '2026-06-12 09:00' },
@@ -138,43 +106,8 @@ export const demosSeed: Demo[] = [
   }
 ];
 
-export const functionPermissionsSeed: FunctionPermission[] = [
-  { userId: 'user_admin', module: 'system-settings', level: 'manage' },
-  { userId: 'user_admin', module: 'demo-preview', level: 'manage' },
-  { userId: 'user_demo_manager', module: 'demo-preview', level: 'manage' },
-  { userId: 'user_viewer', module: 'demo-preview', level: 'view' }
-];
+export const functionPermissionsSeed: FunctionPermission[] = [];
 
-export const demoPermissionsSeed: DemoPermission[] = [
-  { userId: 'user_admin', targetType: 'group', targetId: defaultGroupId },
-  { userId: 'user_admin', targetType: 'group', targetId: 'group_city' },
-  { userId: 'user_admin', targetType: 'group', targetId: 'group_invest' },
-  { userId: 'user_demo_manager', targetType: 'group', targetId: defaultGroupId },
-  { userId: 'user_demo_manager', targetType: 'group', targetId: 'group_city' },
-  { userId: 'user_demo_manager', targetType: 'group', targetId: 'group_invest' },
-  { userId: 'user_viewer', targetType: 'group', targetId: defaultGroupId },
-  { userId: 'user_viewer', targetType: 'demo', targetId: 'demo_invest_001' }
-];
+export const demoPermissionsSeed: DemoPermission[] = [];
 
-export const mcpTokensSeed: McpToken[] = [
-  {
-    id: 'mcp_token_codex',
-    name: 'Codex Agent',
-    boundUserId: 'user_admin',
-    status: 'enabled',
-    tokenPreview: 'yz_mcp_****_codex',
-    expiresAt: '2026-12-31 23:59',
-    lastUsedAt: '2026-06-12 15:30',
-    createdAt: '2026-06-12 15:00'
-  },
-  {
-    id: 'mcp_token_publish',
-    name: '蓝图发布 Agent',
-    boundUserId: 'user_demo_manager',
-    status: 'enabled',
-    tokenPreview: 'yz_mcp_****_pub1',
-    expiresAt: '2026-09-30 23:59',
-    lastUsedAt: '未使用',
-    createdAt: '2026-06-12 15:10'
-  }
-];
+export const mcpTokensSeed: McpToken[] = [];

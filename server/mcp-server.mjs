@@ -158,7 +158,7 @@ async function handleRequest(message) {
       },
       serverInfo: {
         name: 'youzhao-mcp-server',
-        version: '1.2.0'
+        version: '1.2.2'
       }
     });
     return;

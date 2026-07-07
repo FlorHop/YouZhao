@@ -16,6 +16,11 @@ interface LoginResponse {
   user: User;
 }
 
+export interface SetupStatus {
+  setupRequired: boolean;
+  userCount: number;
+}
+
 interface MeResponse {
   user: User;
   functionPermissions: FunctionPermission[];
@@ -97,6 +102,17 @@ export async function loginApi(username: string, password: string) {
   return request<LoginResponse>('/api/auth/login', {
     method: 'POST',
     body: JSON.stringify({ username, password })
+  });
+}
+
+export async function getSetupStatusApi() {
+  return request<SetupStatus>('/api/setup/status');
+}
+
+export async function setupAdminApi(payload: Pick<User, 'username' | 'displayName' | 'email' | 'phone'> & { password: string }) {
+  return request<{ user: User; setup: SetupStatus }>('/api/setup/admin', {
+    method: 'POST',
+    body: JSON.stringify(payload)
   });
 }
 

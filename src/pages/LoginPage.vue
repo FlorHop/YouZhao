@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { reactive, ref } from 'vue';
+import { computed, reactive, ref } from 'vue';
 import { useRouter } from 'vue-router';
 import Button from 'primevue/button';
 import InputText from 'primevue/inputtext';
@@ -13,21 +13,18 @@ const app = useAppState();
 const loading = ref(false);
 const errorMessage = ref('');
 const form = reactive({
-  username: 'admin',
-  password: 'admin123'
+  username: '',
+  password: ''
 });
-
-const demoAccounts = [
-  { label: '管理员', username: 'admin', password: 'admin123', note: '系统设置 + 蓝图管理' },
-  { label: '蓝图管理者', username: 'demo.manager', password: 'demo123', note: '蓝图管理' },
-  { label: '蓝图查看者', username: 'viewer', password: 'viewer123', note: '蓝图查看' }
-];
-
-function fillAccount(account: (typeof demoAccounts)[number]) {
-  form.username = account.username;
-  form.password = account.password;
-  errorMessage.value = '';
-}
+const setupForm = reactive({
+  username: '',
+  displayName: '',
+  email: '',
+  phone: '',
+  password: '',
+  confirmPassword: ''
+});
+const isSetupMode = computed(() => app.setupRequired.value);
 
 async function submitLogin() {
   loading.value = true;
@@ -36,6 +33,31 @@ async function submitLogin() {
   try {
     await app.login(form.username, form.password);
     router.push(app.hasFunctionPermission('demo-preview', 'view') ? '/blueprints' : '/settings');
+  } catch (error) {
+    errorMessage.value = (error as Error).message;
+  } finally {
+    loading.value = false;
+  }
+}
+
+async function submitSetup() {
+  loading.value = true;
+  errorMessage.value = '';
+
+  try {
+    if (setupForm.password !== setupForm.confirmPassword) throw new Error('两次输入的密码不一致');
+    await app.setupAdmin(
+      {
+        username: setupForm.username,
+        displayName: setupForm.displayName,
+        email: setupForm.email,
+        phone: setupForm.phone
+      },
+      setupForm.password
+    );
+    form.username = setupForm.username;
+    form.password = setupForm.password;
+    await submitLogin();
   } catch (error) {
     errorMessage.value = (error as Error).message;
   } finally {
@@ -51,18 +73,51 @@ async function submitLogin() {
         <img class="login-logo" :src="logoUrl" alt="有招" />
       </div>
 
-      <form class="login-panel" @submit.prevent="submitLogin">
+      <form class="login-panel" @submit.prevent="isSetupMode ? submitSetup() : submitLogin()">
         <div class="login-panel-header">
-          <h2>登录</h2>
-          <span>使用下方演示账号快速进入</span>
+          <h2>{{ isSetupMode ? '初始化管理员' : '登录' }}</h2>
+          <span>{{ isSetupMode ? '首次部署需要创建平台管理员帐号' : '请输入帐号密码进入平台' }}</span>
         </div>
 
         <Message v-if="errorMessage" severity="error" :closable="false">{{ errorMessage }}</Message>
 
-        <div class="dialog-form">
+        <div v-if="isSetupMode" class="dialog-form">
+          <div class="form-field">
+            <label for="setup-username">管理员用户名</label>
+            <InputText id="setup-username" v-model="setupForm.username" autocomplete="username" autofocus />
+          </div>
+          <div class="form-field">
+            <label for="setup-display-name">姓名</label>
+            <InputText id="setup-display-name" v-model="setupForm.displayName" autocomplete="name" />
+          </div>
+          <div class="form-field">
+            <label for="setup-email">邮箱</label>
+            <InputText id="setup-email" v-model="setupForm.email" autocomplete="email" />
+          </div>
+          <div class="form-field">
+            <label for="setup-phone">手机号</label>
+            <InputText id="setup-phone" v-model="setupForm.phone" autocomplete="tel" />
+          </div>
+          <div class="form-field">
+            <label for="setup-password">密码</label>
+            <Password id="setup-password" v-model="setupForm.password" :feedback="false" toggleMask autocomplete="new-password" />
+          </div>
+          <div class="form-field">
+            <label for="setup-confirm-password">确认密码</label>
+            <Password
+              id="setup-confirm-password"
+              v-model="setupForm.confirmPassword"
+              :feedback="false"
+              toggleMask
+              autocomplete="new-password"
+            />
+          </div>
+        </div>
+
+        <div v-else class="dialog-form">
           <div class="form-field">
             <label for="username">用户名</label>
-            <InputText id="username" v-model="form.username" autocomplete="username" />
+            <InputText id="username" v-model="form.username" autocomplete="username" autofocus />
           </div>
           <div class="form-field">
             <label for="password">密码</label>
@@ -76,21 +131,13 @@ async function submitLogin() {
           </div>
         </div>
 
-        <Button class="login-submit" type="submit" label="登录平台" icon="pi pi-sign-in" :loading="loading" />
-
-        <div class="account-list">
-          <button
-            v-for="account in demoAccounts"
-            :key="account.username"
-            type="button"
-            class="account-chip"
-            @click="fillAccount(account)"
-          >
-            <strong>{{ account.label }}</strong>
-            <span>{{ account.username }} / {{ account.password }}</span>
-            <small>{{ account.note }}</small>
-          </button>
-        </div>
+        <Button
+          class="login-submit"
+          type="submit"
+          :label="isSetupMode ? '完成初始化' : '登录平台'"
+          :icon="isSetupMode ? 'pi pi-check' : 'pi pi-sign-in'"
+          :loading="loading"
+        />
       </form>
     </section>
   </main>
@@ -110,15 +157,15 @@ async function submitLogin() {
 
 .login-shell {
   display: grid;
-  width: min(1040px, 100%);
-  grid-template-columns: minmax(0, 1fr) 420px;
+  width: min(980px, 100%);
+  grid-template-columns: minmax(0, 1fr) 400px;
   gap: 28px;
   align-items: stretch;
 }
 
 .login-copy {
   display: grid;
-  min-height: 560px;
+  min-height: 500px;
   place-items: center;
   padding: 42px;
   border: 1px solid var(--app-border);
@@ -137,7 +184,7 @@ async function submitLogin() {
 
 .login-panel {
   align-self: center;
-  padding: 22px;
+  padding: 28px;
   border: 1px solid var(--app-border);
   border-radius: 12px;
   background: var(--app-panel);
@@ -165,32 +212,4 @@ async function submitLogin() {
   margin-top: 18px;
 }
 
-.account-list {
-  display: grid;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.account-chip {
-  display: grid;
-  gap: 3px;
-  width: 100%;
-  padding: 11px 12px;
-  border: 1px solid var(--app-border);
-  border-radius: 8px;
-  color: var(--app-text);
-  background: var(--app-panel-muted);
-  text-align: left;
-  cursor: pointer;
-}
-
-.account-chip:hover {
-  border-color: rgba(37, 99, 235, 0.42);
-  background: var(--app-primary-weak);
-}
-
-.account-chip span,
-.account-chip small {
-  color: var(--app-muted);
-}
 </style>

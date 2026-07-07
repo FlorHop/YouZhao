@@ -2,6 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue';
 import { useConfirm } from 'primevue/useconfirm';
 import { useToast } from 'primevue/usetoast';
+import { useRouter } from 'vue-router';
 import Button from 'primevue/button';
 import Chip from 'primevue/chip';
 import Dialog from 'primevue/dialog';
@@ -16,6 +17,7 @@ import { useAppState } from '../state';
 const app = useAppState();
 const toast = useToast();
 const confirm = useConfirm();
+const router = useRouter();
 const contextMenu = ref<InstanceType<typeof Menu> | null>(null);
 const selectedVersions = reactive<Record<string, string>>({});
 const draggedDemoId = ref<string | null>(null);
@@ -158,7 +160,10 @@ function openDemo(demo: Demo) {
     return;
   }
 
-  window.open(version.previewUrl, '_blank', 'noopener,noreferrer');
+  router.push({
+    path: `/blueprints/${demo.id}/preview`,
+    query: { version: version.version }
+  });
 }
 
 async function createGroup() {

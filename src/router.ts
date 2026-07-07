@@ -23,7 +23,13 @@ export const router = createRouter({
 router.beforeEach(async (to) => {
   const app = useAppState();
 
+  await app.refreshSetupStatus();
   await app.bootstrapSession();
+
+  if (app.setupRequired.value) {
+    if (to.path !== '/login') return { path: '/login', query: { setup: '1' } };
+    return true;
+  }
 
   if (to.meta.public) {
     if (app.isAuthenticated.value) {

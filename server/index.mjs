@@ -17,43 +17,11 @@ const maxHtmlBytes = 2 * 1024 * 1024;
 const maxMarkdownBytes = 512 * 1024;
 
 const defaultGroupId = 'group_default';
-const appVersion = '1.2.0';
+const appVersion = '1.2.2';
 
-let users = [
-  {
-    id: 'user_admin',
-    username: 'admin',
-    displayName: '系统管理员',
-    email: 'admin@youzhao.local',
-    phone: '13800000000',
-    status: 'enabled',
-    createdAt: '2026-06-12 09:00'
-  },
-  {
-    id: 'user_demo_manager',
-    username: 'demo.manager',
-    displayName: '蓝图管理者',
-    email: 'manager@youzhao.local',
-    phone: '13800000001',
-    status: 'enabled',
-    createdAt: '2026-06-12 10:00'
-  },
-  {
-    id: 'user_viewer',
-    username: 'viewer',
-    displayName: '蓝图查看者',
-    email: 'viewer@youzhao.local',
-    phone: '13800000002',
-    status: 'enabled',
-    createdAt: '2026-06-12 11:00'
-  }
-];
+let users = [];
 
-let credentials = new Map([
-  ['admin', 'admin123'],
-  ['demo.manager', 'demo123'],
-  ['viewer', 'viewer123']
-]);
+let credentials = new Map();
 
 let groups = [
   { id: defaultGroupId, name: '默认', isDefault: true, order: 0, createdAt: '2026-06-12 09:00' },
@@ -144,35 +112,11 @@ let blueprints = [
   }
 ];
 
-let functionPermissions = [
-  { userId: 'user_admin', module: 'system-settings', level: 'manage' },
-  { userId: 'user_admin', module: 'demo-preview', level: 'manage' },
-  { userId: 'user_demo_manager', module: 'demo-preview', level: 'manage' },
-  { userId: 'user_viewer', module: 'demo-preview', level: 'view' }
-];
+let functionPermissions = [];
 
-let blueprintPermissions = [
-  { userId: 'user_admin', targetType: 'group', targetId: defaultGroupId },
-  { userId: 'user_admin', targetType: 'group', targetId: 'group_city' },
-  { userId: 'user_admin', targetType: 'group', targetId: 'group_invest' },
-  { userId: 'user_demo_manager', targetType: 'group', targetId: defaultGroupId },
-  { userId: 'user_demo_manager', targetType: 'group', targetId: 'group_city' },
-  { userId: 'user_demo_manager', targetType: 'group', targetId: 'group_invest' },
-  { userId: 'user_viewer', targetType: 'group', targetId: defaultGroupId },
-  { userId: 'user_viewer', targetType: 'demo', targetId: 'demo_invest_001' }
-];
+let blueprintPermissions = [];
 
-let mcpTokens = [
-  createMcpTokenSeed('mcp_token_codex', 'Codex Agent', 'user_admin', 'yz_mcp_dev_admin', [
-    'read:blueprint',
-    'publish:blueprint'
-  ]),
-  createMcpTokenSeed('mcp_token_publish', '蓝图发布 Agent', 'user_demo_manager', 'yz_mcp_dev_publish', [
-    'read:blueprint',
-    'publish:blueprint'
-  ]),
-  createMcpTokenSeed('mcp_token_viewer', '蓝图读取 Agent', 'user_viewer', 'yz_mcp_dev_viewer', ['read:blueprint'])
-];
+let mcpTokens = [];
 
 const sessions = new Map();
 let publishResultsByKey = new Map();
@@ -203,6 +147,10 @@ function byteSize(value) {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function isSetupRequired() {
+  return users.length === 0;
 }
 
 function publicBlueprint(blueprint) {
@@ -634,6 +582,13 @@ function adminSnapshot() {
   };
 }
 
+function setupStatus() {
+  return {
+    setupRequired: isSetupRequired(),
+    userCount: users.length
+  };
+}
+
 async function readArtifactContent(version, artifactType) {
   if (artifactType === 'markdown') return version.markdown;
   if (version.storageBasePath) return readFile(path.join(version.storageBasePath, 'index.html'), 'utf8');
@@ -912,7 +867,38 @@ async function route(req, res) {
     });
   }
 
+  if (req.method === 'GET' && pathname === '/api/setup/status') {
+    return sendJson(res, 200, setupStatus());
+  }
+
+  if (req.method === 'POST' && pathname === '/api/setup/admin') {
+    if (!isSetupRequired()) throw apiError(409, 'SETUP_COMPLETED', '平台已完成初始化');
+    const body = await parseJson(req);
+    const payload = validateUserPayload({ ...body, status: 'enabled' });
+    const username = payload.username;
+    const password = validateText(body.password, 'password', { required: true, max: 120 });
+    const user = {
+      id: `user_${randomUUID().slice(0, 8)}`,
+      username,
+      displayName: payload.displayName,
+      email: payload.email,
+      phone: payload.phone,
+      status: 'enabled',
+      createdAt: nowIso()
+    };
+    users.push(user);
+    credentials.set(user.username, password);
+    functionPermissions.push({ userId: user.id, module: 'system-settings', level: 'manage' });
+    functionPermissions.push({ userId: user.id, module: 'demo-preview', level: 'manage' });
+    groups.forEach((group) => {
+      blueprintPermissions.push({ userId: user.id, targetType: 'group', targetId: group.id });
+    });
+    persistState();
+    return sendJson(res, 201, { user, setup: setupStatus() });
+  }
+
   if (req.method === 'POST' && pathname === '/api/auth/login') {
+    if (isSetupRequired()) throw apiError(409, 'SETUP_REQUIRED', '请先完成管理员帐号初始化');
     const body = await parseJson(req);
     const username = validateText(body.username, 'username', { required: true, max: 60 });
     const password = validateText(body.password, 'password', { required: true, max: 120 });
@@ -1331,5 +1317,5 @@ await mkdir(artifactRoot, { recursive: true });
 server.listen(port, '0.0.0.0', () => {
   console.log(`YouZhao API listening on http://127.0.0.1:${port}`);
   console.log(`YouZhao SQLite storage: ${dbPath}`);
-  console.log('MCP dev tokens: yz_mcp_dev_admin, yz_mcp_dev_publish, yz_mcp_dev_viewer');
+  console.log('Use system settings to create MCP tokens after administrator setup.');
 });

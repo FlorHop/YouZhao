@@ -16,10 +16,12 @@ import {
   getBlueprintGroupsApi,
   getBlueprintsApi,
   getMeApi,
+  getSetupStatusApi,
   loginApi,
   reorderBlueprintGroupsApi,
   resetUserPasswordApi,
   setAuthToken,
+  setupAdminApi,
   toDemo,
   updateBlueprintApi,
   updateMcpTokenApi,
@@ -48,6 +50,7 @@ import type {
 } from './types';
 
 const state = reactive({
+  setupRequired: false,
   users: structuredClone(usersSeed) as User[],
   groups: structuredClone(groupsSeed) as DemoGroup[],
   demos: structuredClone(demosSeed) as Demo[],
@@ -63,6 +66,7 @@ export const isAuthenticated = computed(() => Boolean(currentUserId.value));
 const hasBackendToken = computed(() => Boolean(getAuthToken()));
 
 let bootstrapPromise: Promise<void> | null = null;
+let setupStatusPromise: Promise<void> | null = null;
 
 function upsertById<T extends { id: string }>(collection: T[], item: T) {
   const index = collection.findIndex((current) => current.id === item.id);
@@ -100,6 +104,7 @@ function applyAdminSnapshot(payload: AdminSnapshot) {
 
 export function useAppState() {
   const currentUser = computed(() => state.users.find((user) => user.id === currentUserId.value) ?? null);
+  const setupRequired = computed(() => state.setupRequired);
 
   function hasFunctionPermission(module: ModuleKey, required: PermissionLevel) {
     const userId = currentUser.value?.id;
@@ -180,6 +185,24 @@ export function useAppState() {
         });
     }
     await bootstrapPromise;
+  }
+
+  async function refreshSetupStatus() {
+    if (!setupStatusPromise) {
+      setupStatusPromise = getSetupStatusApi()
+        .then((setup) => {
+          state.setupRequired = setup.setupRequired;
+        })
+        .catch((error) => {
+          const canUseLocalFallback = !error || (error as Error).message === 'Failed to fetch';
+          if (!canUseLocalFallback) throw error;
+          state.setupRequired = state.users.length === 0;
+        })
+        .finally(() => {
+          setupStatusPromise = null;
+        });
+    }
+    await setupStatusPromise;
   }
 
   async function refreshBlueprints() {
@@ -360,6 +383,39 @@ export function useAppState() {
     return user;
   }
 
+  async function setupAdmin(payload: Pick<User, 'username' | 'displayName' | 'email' | 'phone'>, password: string) {
+    const username = payload.username.trim();
+    if (!username) throw new Error('用户名不能为空');
+    if (!payload.displayName.trim()) throw new Error('姓名不能为空');
+    if (!password.trim()) throw new Error('密码不能为空');
+
+    try {
+      await setupAdminApi({ ...payload, username, password: password.trim() });
+      state.setupRequired = false;
+      return;
+    } catch (backendError) {
+      const canUseLocalFallback = !backendError || (backendError as Error).message === 'Failed to fetch';
+      if (!canUseLocalFallback) throw backendError;
+    }
+
+    if (state.users.length > 0) throw new Error('平台已完成初始化');
+    const user: User = {
+      ...payload,
+      username,
+      status: 'enabled',
+      id: `user_${Date.now()}`,
+      createdAt: new Date().toLocaleString('zh-CN', { hour12: false })
+    };
+    state.users.push(user);
+    state.credentials[user.username] = password.trim();
+    state.functionPermissions.push({ userId: user.id, module: 'system-settings', level: 'manage' });
+    state.functionPermissions.push({ userId: user.id, module: 'demo-preview', level: 'manage' });
+    state.groups.forEach((group) => {
+      state.demoPermissions.push({ userId: user.id, targetType: 'group', targetId: group.id });
+    });
+    state.setupRequired = false;
+  }
+
   async function updateUser(userId: string, payload: Omit<User, 'id' | 'createdAt'>) {
     const user = state.users.find((item) => item.id === userId);
     if (!user) throw new Error('用户不存在');
@@ -415,6 +471,8 @@ export function useAppState() {
   }
 
   async function login(username: string, password: string) {
+    await refreshSetupStatus();
+    if (state.setupRequired) throw new Error('请先完成管理员帐号初始化');
     try {
       const payload = await loginApi(username, password);
       setAuthToken(payload.token);
@@ -545,6 +603,7 @@ export function useAppState() {
 
   return {
     state,
+    setupRequired,
     currentUser,
     currentUserId,
     isAuthenticated,
@@ -552,6 +611,7 @@ export function useAppState() {
     visibleDemos,
     visibleGroups,
     hasFunctionPermission,
+    refreshSetupStatus,
     bootstrapSession,
     refreshBlueprints,
     refreshAdminData,
@@ -566,6 +626,7 @@ export function useAppState() {
     restoreDemo,
     deleteDemo,
     createUser,
+    setupAdmin,
     updateUser,
     deleteUser,
     resetUserPassword,
