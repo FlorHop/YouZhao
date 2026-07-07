@@ -39,7 +39,7 @@ if [[ "$SKIP_BACKUP" != "true" ]]; then
   backup_file="$BACKUP_DIR/youzhao-data-$(date +%Y%m%d%H%M%S).tar.gz"
   log "备份数据目录：$backup_file"
   if [[ -d "$DATA_DIR" ]]; then
-    tar -czf "$backup_file" -C "$(dirname "$DATA_DIR")" "$(basename "$DATA_DIR")"
+    tar --exclude="$(basename "$DATA_DIR")/backups" -czf "$backup_file" -C "$(dirname "$DATA_DIR")" "$(basename "$DATA_DIR")"
   else
     log "数据目录不存在，跳过备份：$DATA_DIR"
   fi
