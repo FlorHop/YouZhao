@@ -1,26 +1,30 @@
 {
   "name": "youzhao-demo-platform",
-  "version": "1.2.2",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vite --host 0.0.0.0",
-    "server:dev": "node server/index.mjs",
-    "mcp:dev": "node server/mcp-server.mjs",
-    "build": "vue-tsc -b && vite build",
-    "preview": "vite preview --host 0.0.0.0"
+    "contracts:gen": "pnpm -C packages/contracts gen",
+    "contracts:check": "pnpm -C packages/contracts check",
+    "contracts:test": "pnpm -C packages/contracts test",
+    "server:dev": "pnpm -C server dev",
+    "server:start": "pnpm -C server start",
+    "server:migrate": "pnpm -C server migrate",
+    "server:migrate:legacy": "pnpm -C server migrate:legacy",
+    "server:lint": "pnpm -C server lint",
+    "server:typecheck": "pnpm -C server typecheck",
+    "server:test": "pnpm -C server test",
+    "web:dev": "pnpm -C web dev",
+    "web:preview-origin": "pnpm -C web dev:preview-origin",
+    "web:build": "pnpm -C web build",
+    "web:typecheck": "pnpm -C web typecheck",
+    "web:lint": "pnpm -C web lint",
+    "web:test": "pnpm -C web test",
+    "smoke:e2e": "node scripts/smoke-e2e.mjs",
+    "smoke:ui": "node scripts/smoke-ui.mjs",
+    "verify": "pnpm contracts:check && pnpm contracts:test && pnpm server:lint && pnpm server:typecheck && pnpm server:test && pnpm web:lint && pnpm web:typecheck && pnpm web:test"
   },
-  "dependencies": {
-    "@primeuix/themes": "^1.2.3",
-    "@vitejs/plugin-vue": "^5.2.4",
-    "primeicons": "^7.0.0",
-    "primevue": "^4.3.5",
-    "vue": "^3.5.16",
-    "vue-router": "^4.5.1"
-  },
-  "devDependencies": {
-    "typescript": "^5.8.3",
-    "vite": "^6.3.5",
-    "vue-tsc": "^2.2.10"
+  "pnpm": {
+    "verifyDepsBeforeRun": false
   }
 }

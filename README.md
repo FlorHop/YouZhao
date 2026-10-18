@@ -1,373 +1,135 @@
-# 有招
+# 有招（YouZhao）
 
-有招是一个面向数据可视化交付场景的蓝图展示与发布平台。当前版本包含 Vue/PrimeVue 前端、Node.js 后端 API、蓝图预览、用户/权限、MCP Token 与 MCP 蓝图读取/发布接口的 MVP 实现。
+内部演示蓝图平台：把 HTML / Markdown 演示产物按「分组 → 蓝图 → 版本」组织起来，通过浏览器预览，并让 AI Agent 经 MCP 读取与发布。
 
-## 功能范围
+本仓库是 **v2 重建**（契约优先 + PostgreSQL 关系模型 + MCP 服务）。旧版单文件 `app_state` JSON 应用已在 M6 切流中移除；旧数据可经迁移工具导入（见下）。设计与实施文档在 [`docs/`](docs/)。
 
-- 蓝图分组展示、搜索、版本选择与预览。
-- 蓝图卡片信息维护与分组变更。
-- 用户管理、密码重置、功能权限与蓝图权限。
-- MCP Token 管理入口。
-- Agent 通过 MCP Server 读取蓝图、读取产物、发布蓝图版本。
-- 蓝图 HTML 与 Markdown 产物落盘存储。
+---
 
-## 本地启动
+## 一眼看懂的结构
 
-要求：
-
-- Node.js 24+
-- npm 10+
-
-安装依赖：
-
-```bash
-npm install
-```
-
-启动后端：
-
-```bash
-npm run server:dev
-```
-
-启动前端：
-
-```bash
-npm run dev
-```
-
-访问：
-
-- 前端：http://localhost:5173
-- 后端：http://127.0.0.1:4174
-- 健康检查：http://127.0.0.1:4174/api/health
-
-首次启动时需要在登录页初始化管理员账号。平台不再内置演示账号。
-
-MCP Token 需要在管理员初始化后进入系统设置创建。后端本地开发可按需要手动创建 Token 并用于 MCP Server：
-
-| Token | 权限 |
+| 目录 | 内容 |
 | --- | --- |
-| `yz_mcp_dev_admin` | 读取、发布 |
-| `yz_mcp_dev_publish` | 读取、发布 |
-| `yz_mcp_dev_viewer` | 读取 |
+| `packages/contracts/` | **契约唯一事实来源**：`schemas/**/*.json`（JSON Schema）+ 生成器（`gen` / `check`）→ `generated/*.ts`（类型与服务端校验共用） |
+| `server/` | Fastify + PostgreSQL 16 + Kysely 的 API；含身份权限域、蓝图与产物存储、预览票据、MCP 服务、旧数据迁移 CLI |
+| `web/` | Vue 3 + PrimeVue 前端（工作台 + 预览运行时的宿主页），OpenAI 设计体系 token 绑定 |
+| `deploy/` | 容器化编排：compose（postgres / api / web / gateway）、网关 nginx、安装/升级/备份/恢复脚本 |
+| `scripts/` | 无三方依赖的验收脚本：`smoke:e2e`（HTTP 契约 16 步）、`smoke:ui`（浏览器 14 步） |
+| `skills/youzhao-mcp/` | MCP 接入说明（SKILL.md、逐工具参考、stdio 桥与冒烟脚本） |
+| `docs/` | 产品 PRD、架构设计（含 M0–M6 落地注记）、权限设计、前端设计、交互审核 |
 
-## MCP Server
+> **契约单一事实来源**：任何接口字段改动都先改 `packages/contracts/schemas/`，再 `pnpm contracts:gen`；`pnpm verify` 的第一步会拒绝未同步的生成物。
 
-有招提供 stdio MCP Server：
+---
+
+## 本地启动（本机没有 PostgreSQL 时）
+
+前置：Node ≥ 20（本机 24.x）、`pnpm`。
 
 ```bash
-YOUZHAO_API_BASE=http://127.0.0.1:4174 \
-YOUZHAO_MCP_TOKEN=yz_mcp_dev_admin \
-node server/mcp-server.mjs
+# 1) 安装依赖（契约包 / 服务端 / 前端各自独立）
+pnpm -C packages/contracts install && pnpm -C server install && pnpm -C web install
+
+# 2) 环境变量：样例即本地可跑的值
+cp server/.env.example server/.env
+#   本机没有 PostgreSQL → 把 server/.env 里的 DB_DRIVER 改成 pglite（内存库，重启即清空，生产被硬拒）
+
+# 3) 起 API（默认 http://127.0.0.1:3000）
+pnpm server:dev
+
+# 4) 起前端（另开一个终端；Vite 监听 [::1]:5173，请用 http://localhost:5173 访问）
+pnpm web:dev
+
+# 5) 起「预览域」代理（再开一个终端）——预览域必须与应用域不同源，本地用 3001 模拟
+pnpm web:preview-origin
 ```
 
-MCP 客户端配置示例：
+首次启动会用 `ADMIN_USERNAME` / `ADMIN_PASSWORD` 自动创建**所有者**（identity = `owner`，隐式拥有全部业务能力与可见范围），并提示修改口令。
+
+有 PostgreSQL 16 时把 `DB_DRIVER=postgres`（默认）与 `POSTGRES_*` 填好即可，其余步骤相同。
+
+---
+
+## 验收与门禁
+
+```bash
+pnpm verify    # 契约 check+test → server lint/typecheck/test → web lint/typecheck/test
+
+# 端到端冒烟（需要先把 API 跑起来）
+pnpm smoke:e2e -- --base http://127.0.0.1:3000
+
+# 浏览器级冒烟（需要 API + web dev + Chrome 以 CDP 启动；见 web/README.md）
+pnpm smoke:ui
+```
+
+`smoke:e2e` 覆盖：健康检查、登录、分组、Token（断言响应不含 `token_hash`）、MCP `tools/list` 与发布、蓝图列表与详情、预览票据 → 303 换 Cookie → 产物（校验 CSP / nosniff）、匿名与二次换票必须 403、Token 删除后立即失效。
+
+---
+
+## 权限模型（一句话版）
+
+三种互斥身份：**所有者**（全平台唯一，隐式拥有全部能力）、**用户管理员**（只能管理被指派的用户，且只能授予**自己获准委派**的查看范围）、**成员**（只能看到被授权的蓝图）。
+
+业务能力 `blueprint.manage` / `blueprint.publish` 必须带资源范围；所有者之外谁都不能管理同级或所有者。完整矩阵、错误码与端点契约见 [`docs/permission-design.md`](docs/permission-design.md)。
+
+---
+
+## 旧数据迁移（v1 → v2）
+
+```bash
+# 先干跑，看「迁移前后可见范围对照」与需要人工确认的事项
+pnpm server:migrate:legacy -- --data-dir /data/youzhao --owner admin --dry-run --report /tmp/legacy-report.json
+# 确认后落库
+pnpm server:migrate:legacy -- --data-dir /data/youzhao --owner admin --report /tmp/legacy-report.json
+```
+
+要点：旧明文口令一次性转为 scrypt 并强制改密；旧 Token 只迁元数据且一律停用（需重建）；旧模型没有「管理归属」概念，需在所有者的权限页批量指派；原分组已被删除的蓝图会落入**无授权占位分组**（不改变任何人的可见范围）；可见范围变宽的人会在报告里逐条点名。详见 [`docs/architecture-design.md`](docs/architecture-design.md) §8.1。
+
+---
+
+## 部署
+
+```bash
+cd deploy
+cp .env.example .env      # 首次请把 please-change-this-* 换成随机值
+./scripts/install.sh      # 构建并起 postgres / api / web / gateway，等待健康检查
+./scripts/upgrade.sh      # 升级（默认先备份）
+./scripts/backup.sh       # 备份（数据库 dump + 产物目录 + .env 快照）
+./scripts/restore.sh      # 恢复（需二次确认）
+```
+
+应用域 `/` → web、`/api` 与 `/mcp` → api；预览**独立域** `/preview/...` → api，应用域下的 `/preview*` 一律 404。详见 [`deploy/README.md`](deploy/README.md) 与 [`docs/architecture-design.md`](docs/architecture-design.md) §8.2。
+
+---
+
+## MCP 接入
 
 ```json
 {
   "mcpServers": {
     "youzhao": {
       "command": "node",
-      "args": ["/opt/youzhao/app/server/mcp-server.mjs"],
+      "args": ["/绝对路径/server/mcp-server.mjs"],
       "env": {
-        "YOUZHAO_API_BASE": "http://127.0.0.1:4174",
-        "YOUZHAO_MCP_TOKEN": "your_mcp_token"
+        "YOUZHAO_API_BASE": "https://youzhao.example.com",
+        "YOUZHAO_MCP_TOKEN": "yz_mcp_..."
       }
     }
   }
 }
 ```
 
-可用工具：
-
-- `youzhao.list_blueprint_groups`
-- `youzhao.list_blueprints`
-- `youzhao.get_blueprint`
-- `youzhao.get_blueprint_artifact`
-- `youzhao.publish_blueprint`
-
-验证：
-
-```bash
-YOUZHAO_API_BASE=http://127.0.0.1:4174 \
-YOUZHAO_MCP_TOKEN=yz_mcp_dev_admin \
-node skills/youzhao-mcp/scripts/youzhao_mcp_smoke_test.mjs server/mcp-server.mjs
-```
-
-## 构建
-
-```bash
-npm run build
-```
-
-构建产物输出到 `dist/`。`dist/` 不提交到 Git，部署时在服务器上构建。
-
-## 服务器部署手册
-
-以下流程适用于单台 Linux 服务器部署当前 MVP。后端使用 SQLite 持久化业务数据，蓝图发布产物和数据库默认都存放在 `YOUZHAO_DATA_DIR`。服务重启后会保留用户、权限、分组、蓝图元数据、MCP Token、MCP 审计日志和发布幂等记录。
-
-### 1. 准备服务器
-
-建议系统：
-
-- Ubuntu 22.04 LTS 或同级 Linux 发行版
-- 2C4G 以上配置
-- 20GB 以上磁盘
-
-安装基础依赖：
-
-```bash
-sudo apt update
-sudo apt install -y git curl nginx
-```
-
-安装 Node.js 24 或更高版本：
-
-```bash
-curl -fsSL https://deb.nodesource.com/setup_24.x | sudo -E bash -
-sudo apt install -y nodejs
-node -v
-npm -v
-```
-
-### 2. 拉取代码
-
-```bash
-sudo mkdir -p /opt/youzhao
-sudo chown -R "$USER":"$USER" /opt/youzhao
-git clone https://github.com/FlorHop/YouZhao.git /opt/youzhao/app
-cd /opt/youzhao/app
-```
-
-安装依赖并构建：
-
-```bash
-npm ci
-npm run build
-```
-
-准备数据目录：
-
-```bash
-sudo mkdir -p /data/youzhao/previews
-sudo chown -R "$USER":"$USER" /data/youzhao
-```
-
-### 3. 配置后端服务
-
-创建 systemd 服务：
-
-```bash
-sudo tee /etc/systemd/system/youzhao-api.service >/dev/null <<'EOF'
-[Unit]
-Description=YouZhao API
-After=network.target
-
-[Service]
-Type=simple
-WorkingDirectory=/opt/youzhao/app
-Environment=NODE_ENV=production
-Environment=YOUZHAO_API_PORT=4174
-Environment=YOUZHAO_DATA_DIR=/data/youzhao
-Environment=YOUZHAO_DB_PATH=/data/youzhao/youzhao.sqlite
-ExecStart=/usr/bin/node server/index.mjs
-Restart=always
-RestartSec=3
-
-[Install]
-WantedBy=multi-user.target
-EOF
-```
-
-启动服务：
-
-```bash
-sudo systemctl daemon-reload
-sudo systemctl enable --now youzhao-api
-sudo systemctl status youzhao-api
-```
-
-验证后端：
-
-```bash
-curl http://127.0.0.1:4174/api/health
-```
-
-### 4. 配置 Nginx
-
-创建站点配置：
-
-```bash
-sudo tee /etc/nginx/sites-available/youzhao >/dev/null <<'EOF'
-server {
-    listen 80;
-    server_name _;
-
-    root /opt/youzhao/app/dist;
-    index index.html;
-
-    client_max_body_size 8m;
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:4174/api/;
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location /preview-artifacts/ {
-        try_files $uri =404;
-    }
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-EOF
-```
-
-启用站点：
-
-```bash
-sudo ln -sf /etc/nginx/sites-available/youzhao /etc/nginx/sites-enabled/youzhao
-sudo nginx -t
-sudo systemctl reload nginx
-```
-
-访问服务器公网或内网 IP：
-
-```text
-http://<server-ip>/
-```
-
-### 5. 发布新版本
-
-服务器部署完成后，后续发布新版本只需要执行更新脚本：
-
-```bash
-cd /opt/youzhao/app
-bash scripts/update.sh
-```
-
-脚本会自动执行：
-
-- 检查工作区是否干净。
-- 备份 `/data/youzhao` 到 `/data/youzhao/backups`。
-- 拉取 `origin/main` 最新代码。
-- 执行 `npm ci`。
-- 执行 `npm run build`。
-- 重启 `youzhao-api`。
-- 检查并重载 Nginx。
-- 调用健康检查接口。
-
-可选环境变量：
-
-| 变量 | 默认值 | 说明 |
-| --- | --- | --- |
-| `APP_DIR` | `/opt/youzhao/app` | 应用代码目录 |
-| `YOUZHAO_DATA_DIR` | `/data/youzhao` | 数据目录 |
-| `YOUZHAO_DB_PATH` | `/data/youzhao/youzhao.sqlite` | SQLite 数据库文件 |
-| `YOUZHAO_BACKUP_DIR` | `/data/youzhao/backups` | 备份目录 |
-| `YOUZHAO_BRANCH` | `main` | 更新分支 |
-| `YOUZHAO_API_SERVICE` | `youzhao-api` | systemd 服务名 |
-| `YOUZHAO_HEALTH_URL` | `http://127.0.0.1:4174/api/health` | 健康检查地址 |
-| `YOUZHAO_SKIP_BACKUP` | `false` | 设置为 `true` 可跳过备份 |
-
-示例：
-
-```bash
-YOUZHAO_SKIP_BACKUP=true bash scripts/update.sh
-```
-
-### 6. 数据与备份
-
-当前需要备份：
-
-```text
-/data/youzhao/
-├─ youzhao.sqlite
-├─ previews/
-└─ backups/
-```
-
-备份命令示例：
-
-```bash
-sudo tar -czf /data/youzhao-backup-$(date +%Y%m%d%H%M%S).tar.gz /data/youzhao
-```
-
-恢复时停止服务、解压数据目录、重新启动：
-
-```bash
-sudo systemctl stop youzhao-api
-sudo tar -xzf /path/to/backup.tar.gz -C /
-sudo systemctl start youzhao-api
-```
-
-### 7. 常见问题
-
-接口返回“接口不存在”：
-
-- 确认后端服务已重启：`sudo systemctl restart youzhao-api`
-- 确认 Nginx 代理路径为 `/api/`
-- 直连检查：`curl http://127.0.0.1:4174/api/health`
-- 代理检查：`curl http://<server-ip>/api/health`
-
-前端刷新后 404：
-
-- 确认 Nginx `location /` 使用了 `try_files $uri $uri/ /index.html;`
-
-蓝图发布产物不可访问：
-
-- 确认 `YOUZHAO_DATA_DIR=/data/youzhao`
-- 确认 `/data/youzhao/previews` 目录存在且服务进程有写权限
-
-业务数据重启后丢失：
-
-- 确认服务使用 Node.js 24 或更高版本。
-- 确认 `YOUZHAO_DB_PATH=/data/youzhao/youzhao.sqlite`。
-- 确认 `/data/youzhao/youzhao.sqlite` 存在且服务进程有读写权限。
-
-## 目录说明
-
-```text
-docs/       产品、前端、部署约束文档
-server/     Node.js 后端 API
-src/        Vue 前端源码
-public/     前端静态蓝图预览样例
-icon/       Logo 原始文件
-```
-
-## 版本规范
-
-有招使用 `MAJOR.MINOR.PATCH` 版本号：
-
-- `MAJOR`：架构、数据存储、部署方式、权限模型等影响生产运行方式的变更。
-- `MINOR`：小功能迭代、页面能力补充、接口能力新增且兼容旧版本的变更。
-- `PATCH`：缺陷修复、文案调整、样式微调、兼容性修复。
-
-平台版本需要同步更新：
-
-- `package.json` 的 `version`
-- `src/version.ts` 的 `appVersion`
-- 后端 `/api/health` 返回的 `version`
-- MCP Server `initialize` 返回的 `serverInfo.version`
-
-### 版本记录
-
-- `1.2.2`：移除登录页演示账号提示，首次部署改为先初始化管理员帐号，初始化后再进入正常登录。
-- `1.2.1`：修复点击蓝图会新开页签的问题，改为在当前页签打开预览并返回蓝图模块。
-- `1.2.0`：蓝图预览页新增返回蓝图模块入口。
-- `1.1.2`：新建蓝图分组时，自动为所有拥有蓝图预览管理权限的用户分配该分组授权。
-- `1.1.1`：修复蓝图归档、恢复、删除等确认操作弹出两次确认框的问题。
-- `1.1.0`：新增蓝图归档、恢复、删除能力；管理者可按展示中、已归档、全部状态筛选蓝图。
-- `1.0.0`：引入 SQLite 持久化，生产数据不再依赖进程内存。
-
-## 重要限制
-
-- 当前版本后端结构化数据使用 SQLite 单表快照持久化，适合单机生产版；后续可演进为多表关系模型。
-- 当前 MCP Server 是 stdio transport，内部复用后端蓝图工具接口。
-- 单机生产版 Docker Compose 和数据库迁移工具仍在后续建设中。
+Token 在「MCP Token」页创建（明文只显示一次）。实际能力 = **绑定用户的平台权限 ∩ Token scope**；`read:blueprint` 只能读，`publish:blueprint` 才能发布。工具清单与逐工具入参见 [`skills/youzhao-mcp/`](skills/youzhao-mcp/)。
+
+---
+
+## 文档索引
+
+| 文档 | 用途 |
+| --- | --- |
+| [`docs/demo-platform-prd.md`](docs/demo-platform-prd.md) | 产品需求（用户/权限/蓝图/MCP 的原始口径） |
+| [`docs/architecture-design.md`](docs/architecture-design.md) | 前后端与 MCP 架构、数据模型、M0–M6 落地注记、部署与迁移要点 |
+| [`docs/permission-design.md`](docs/permission-design.md) | 权限模型、矩阵、不变量、端点与错误码契约 |
+| [`docs/frontend-design.md`](docs/frontend-design.md) | 页面清单与逐页交互规格（P1–P8） |
+| [`docs/deployment-rules.md`](docs/deployment-rules.md) · [`docs/frontend-rules.md`](docs/frontend-rules.md) | 部署约束与前端规范（设计令牌、组件优先级、页面骨架） |
+| [`docs/prototype-interaction-review.md`](docs/prototype-interaction-review.md) | 早期高保真原型的交互审核记录 |

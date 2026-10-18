@@ -3,3 +3,12 @@ dist/
 data/
 *.tsbuildinfo
 .DS_Store
+coverage/
+.pnpm-store/
+.env
+.env.*
+!.env.example
+artifacts/
+# 根 package.json 只做编排、本身无依赖；在根跑脚本时 pnpm 会生成一个空 importers 的
+# 根 lockfile。三个子包（packages/contracts、server、web）各自独立安装并各自提交 lockfile。
+/pnpm-lock.yaml
