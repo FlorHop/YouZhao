@@ -1,220 +1,159 @@
-const apiBase = (process.env.YOUZHAO_API_BASE ?? 'http://127.0.0.1:4174').replace(/\/$/, '');
-const mcpToken = process.env.YOUZHAO_MCP_TOKEN;
-const protocolVersion = '2024-11-05';
+#!/usr/bin/env node
+/**
+ * 有招 MCP stdio 桥（docs/architecture-design.md §4.3、§4.7）。
+ *
+ * 为什么需要它：桌面 MCP 客户端（Codex、Claude Desktop 等）只会说 **stdio**，而 MCP 协议实现
+ * 在服务端进程内（`server/mcp/http.ts`，挂 `/mcp`）。这个桥只做两件事：
+ *   1. 把 stdin 上的「换行分隔 JSON-RPC」逐条 POST 到 `<YOUZHAO_API_BASE><YOUZHAO_MCP_PATH>`；
+ *   2. 把响应（可能是 `application/json`，也可能是 SSE 的 `data:` 帧）解回「换行分隔 JSON-RPC」写 stdout。
+ *
+ * 纪律：
+ * - **不解释 MCP 语义**：工具、scope、审计、幂等一律在服务端（同一个实现），避免两套行为；
+ * - **stdout 只写协议**：诊断信息一律 stderr（stdout 是协议通道，混进日志会让客户端解析失败）；
+ * - **不落盘 Token**：令牌只从环境变量读，不写入日志、不回显。
+ *
+ * 环境变量：
+ * - `YOUZHAO_API_BASE`（必填）例如 `http://127.0.0.1:4174`
+ * - `YOUZHAO_MCP_TOKEN`（必填）MCP Token 明文，`yz_mcp_<tokenId>_<secret>`
+ * - `YOUZHAO_MCP_PATH`（可选，默认 `/mcp`）
+ * - `YOUZHAO_MCP_TIMEOUT_MS`（可选，默认 120000）
+ */
+import { stdin, stdout, stderr, env, exit } from 'node:process';
 
-const tools = [
-  {
-    name: 'youzhao.list_blueprint_groups',
-    description: 'List blueprint groups accessible to the bound YouZhao MCP token.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        keyword: { type: 'string', description: 'Optional group name keyword.' },
-        includeEmpty: { type: 'boolean', description: 'Whether to include empty groups.', default: true }
-      },
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'youzhao.list_blueprints',
-    description: 'List blueprints accessible to the bound YouZhao MCP token.',
-    inputSchema: {
-      type: 'object',
-      properties: {
-        groupId: { type: 'string' },
-        keyword: { type: 'string' },
-        tag: { type: 'string' },
-        limit: { type: 'number', default: 20 },
-        offset: { type: 'number', default: 0 }
-      },
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'youzhao.get_blueprint',
-    description: 'Get blueprint metadata and version list.',
-    inputSchema: {
-      type: 'object',
-      required: ['blueprintId'],
-      properties: {
-        blueprintId: { type: 'string' }
-      },
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'youzhao.get_blueprint_artifact',
-    description: 'Fetch blueprint HTML or Markdown artifact for a version.',
-    inputSchema: {
-      type: 'object',
-      required: ['blueprintId', 'artifactType'],
-      properties: {
-        blueprintId: { type: 'string' },
-        version: { type: 'string', description: 'Optional version; latest is used when omitted.' },
-        artifactType: { type: 'string', enum: ['html', 'markdown'] }
-      },
-      additionalProperties: false
-    }
-  },
-  {
-    name: 'youzhao.publish_blueprint',
-    description: 'Publish a new blueprint version, or create a blueprint when blueprintId is omitted.',
-    inputSchema: {
-      type: 'object',
-      required: ['name', 'version', 'html', 'markdown'],
-      properties: {
-        blueprintId: { type: 'string' },
-        name: { type: 'string' },
-        summary: { type: 'string' },
-        tags: { type: 'array', items: { type: 'string' } },
-        groupId: { type: 'string' },
-        version: { type: 'string' },
-        html: { type: 'string' },
-        markdown: { type: 'string' },
-        publishNote: { type: 'string' },
-        idempotencyKey: { type: 'string' }
-      },
-      additionalProperties: false
-    }
+const DEFAULT_PATH = '/mcp';
+const DEFAULT_TIMEOUT_MS = 120_000;
+const MODERN_VERSION = '2026-07-28';
+
+/** 按换行切分 stdin 缓冲，返回 [完整行, 残留]。`\r\n` 与 `\n` 都接受。 */
+export function splitFrames(buffer) {
+  const frames = [];
+  let rest = buffer;
+  for (;;) {
+    const index = rest.indexOf('\n');
+    if (index === -1) break;
+    const line = rest.slice(0, index).replace(/\r$/, '').trim();
+    rest = rest.slice(index + 1);
+    if (line !== '') frames.push(line);
   }
-];
-
-let inputBuffer = Buffer.alloc(0);
-
-function sendMessage(message) {
-  const body = Buffer.from(JSON.stringify(message), 'utf8');
-  process.stdout.write(`Content-Length: ${body.length}\r\n\r\n`);
-  process.stdout.write(body);
+  return [frames, rest];
 }
 
-function sendResult(id, result) {
-  sendMessage({ jsonrpc: '2.0', id, result });
-}
-
-function sendError(id, code, message, data) {
-  sendMessage({
-    jsonrpc: '2.0',
-    id,
-    error: {
-      code,
-      message,
-      data
+/** 从一条 HTTP 响应体里取出 JSON-RPC 报文：JSON 直出，SSE 取所有 `data:` 帧。 */
+export function extractMessages(contentType, body) {
+  if (/text\/event-stream/i.test(contentType)) {
+    const messages = [];
+    for (const line of body.split('\n')) {
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const payload = trimmed.slice('data:'.length).trim();
+      if (payload !== '') messages.push(payload);
     }
-  });
+    return messages;
+  }
+  const trimmed = body.trim();
+  return trimmed === '' ? [] : [trimmed];
 }
 
-function tryReadMessage() {
-  const separator = inputBuffer.indexOf('\r\n\r\n');
-  if (separator < 0) return null;
+/**
+ * 请求头：把 JSON-RPC 报文里的方法与工具名映射成现代协议的 `MCP-Protocol-Version` / `Mcp-Method` / `Mcp-Name`。
+ *
+ * 现代 era（≥ `2026-07-28`）里服务端会校验「头与体内声明的协议版本一致」，缺头直接 -32020；
+ * 而 initialize 也必须带该头。旧代（initialize 时代，如 `2025-11-25`）**不能**带现代头，
+ * 否则会被判成版本不一致——所以这里按客户端声明的版本决定发不发。
+ */
+export function headersFor(message, { token, protocolVersion }) {
+  const headers = {
+    'content-type': 'application/json',
+    accept: 'application/json, text/event-stream',
+    authorization: `Bearer ${token}`,
+  };
+  if (message === null || typeof message !== 'object') return headers;
+  const declared =
+    message.method === 'initialize' && typeof message.params?.protocolVersion === 'string'
+      ? message.params.protocolVersion
+      : protocolVersion;
+  if (typeof declared !== 'string' || declared < MODERN_VERSION) return headers;
 
-  const header = inputBuffer.subarray(0, separator).toString('utf8');
-  const match = header.match(/content-length:\s*(\d+)/i);
-  if (!match) {
-    inputBuffer = inputBuffer.subarray(separator + 4);
-    throw new Error('Missing Content-Length header');
+  headers['mcp-protocol-version'] = declared;
+  if (typeof message.method === 'string') {
+    headers['mcp-method'] = message.method;
+    if (typeof message.params?.name === 'string') headers['mcp-name'] = message.params.name;
   }
-
-  const length = Number(match[1]);
-  const bodyStart = separator + 4;
-  const bodyEnd = bodyStart + length;
-  if (inputBuffer.length < bodyEnd) return null;
-
-  const body = inputBuffer.subarray(bodyStart, bodyEnd).toString('utf8');
-  inputBuffer = inputBuffer.subarray(bodyEnd);
-  return JSON.parse(body);
+  return headers;
 }
 
-async function callYouzhaoTool(toolName, args = {}) {
-  if (!mcpToken) {
-    throw new Error('YOUZHAO_MCP_TOKEN is required');
+async function main() {
+  const apiBase = (env.YOUZHAO_API_BASE ?? '').replace(/\/+$/, '');
+  const token = env.YOUZHAO_MCP_TOKEN ?? '';
+  const path = env.YOUZHAO_MCP_PATH ?? DEFAULT_PATH;
+  const timeoutMs = Number.parseInt(env.YOUZHAO_MCP_TIMEOUT_MS ?? '', 10) || DEFAULT_TIMEOUT_MS;
+
+  if (apiBase === '' || token === '') {
+    stderr.write('✗ 缺少环境变量：YOUZHAO_API_BASE 与 YOUZHAO_MCP_TOKEN 都必须设置\n');
+    exit(1);
   }
+  const endpoint = `${apiBase}${path.startsWith('/') ? path : `/${path}`}`;
+  stderr.write(`有招 MCP stdio 桥已启动 → ${endpoint}\n`);
 
-  const response = await fetch(`${apiBase}/api/mcp/tools/${encodeURIComponent(toolName)}`, {
-    method: 'POST',
-    headers: {
-      authorization: `Bearer ${mcpToken}`,
-      'content-type': 'application/json'
-    },
-    body: JSON.stringify(args)
-  });
-  const payload = await response.json().catch(() => ({}));
-  if (!response.ok) {
-    const error = payload.error ?? {};
-    throw new Error(error.message || `YouZhao API request failed: ${response.status}`);
-  }
-  return payload.data ?? payload;
-}
+  let buffer = '';
+  let protocolVersion = null;
+  let inflight = Promise.resolve();
 
-async function handleRequest(message) {
-  const { id, method, params } = message;
-
-  if (!method) return;
-
-  if (method === 'initialize') {
-    sendResult(id, {
-      protocolVersion,
-      capabilities: {
-        tools: {}
-      },
-      serverInfo: {
-        name: 'youzhao-mcp-server',
-        version: '1.2.2'
-      }
-    });
-    return;
-  }
-
-  if (method === 'notifications/initialized') return;
-
-  if (method === 'tools/list') {
-    sendResult(id, { tools });
-    return;
-  }
-
-  if (method === 'tools/call') {
-    const name = params?.name;
-    const args = params?.arguments ?? {};
-    if (!tools.some((tool) => tool.name === name)) {
-      sendError(id, -32602, `Unknown tool: ${name}`);
+  async function forward(line) {
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id: null, error: { code: -32700, message: 'Parse error' } })}\n`);
       return;
     }
-    try {
-      const data = await callYouzhaoTool(name, args);
-      sendResult(id, {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify(data, null, 2)
-          }
-        ]
-      });
-    } catch (error) {
-      sendResult(id, {
-        isError: true,
-        content: [
-          {
-            type: 'text',
-            text: error instanceof Error ? error.message : String(error)
-          }
-        ]
-      });
+    // 客户端协商的协议版本决定后续请求要不要带 mcp-protocol-version（现代 era 必带）
+    if (message?.method === 'initialize' && typeof message.params?.protocolVersion === 'string') {
+      protocolVersion = message.params.protocolVersion;
     }
-    return;
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: headersFor(message, { token, protocolVersion }),
+        body: line,
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      const body = await response.text();
+      if (!response.ok) {
+        stderr.write(`✗ 服务端返回 ${response.status}：${body.slice(0, 400)}\n`);
+      }
+      for (const item of extractMessages(response.headers.get('content-type') ?? '', body)) {
+        stdout.write(`${item}\n`);
+      }
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      stderr.write(`✗ 转发失败：${reason}\n`);
+      stdout.write(
+        `${JSON.stringify({
+          jsonrpc: '2.0',
+          id: message?.id ?? null,
+          error: { code: -32603, message: `有招 MCP 桥转发失败：${reason}` },
+        })}\n`,
+      );
+    }
   }
 
-  if (id !== undefined) sendError(id, -32601, `Method not found: ${method}`);
+  stdin.setEncoding('utf8');
+  stdin.on('data', (chunk) => {
+    buffer += chunk;
+    const [frames, rest] = splitFrames(buffer);
+    buffer = rest;
+    for (const frame of frames) {
+      // 保持先后顺序：串行转发，避免响应乱序（stdio 客户端按 id 匹配，但顺序更易诊断）
+      inflight = inflight.then(() => forward(frame));
+    }
+  });
+  stdin.on('end', () => {
+    void inflight.then(() => exit(0));
+  });
 }
 
-process.stdin.on('data', async (chunk) => {
-  inputBuffer = Buffer.concat([inputBuffer, chunk]);
-  try {
-    let message;
-    while ((message = tryReadMessage())) {
-      await handleRequest(message);
-    }
-  } catch (error) {
-    sendError(null, -32700, error instanceof Error ? error.message : 'Parse error');
-  }
-});
-
-process.stdin.resume();
+// 作为模块被 import 时（测试用纯函数）不启动；作为脚本运行时才连 stdin
+if (import.meta.url === `file://${process.argv[1]}`) {
+  await main();
+}
