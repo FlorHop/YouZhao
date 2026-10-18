@@ -1,0 +1,104 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * 有招 · 视觉 token
+ *
+ * **来源**：Open Design 内置设计体系 `openai`
+ * （`/Applications/Open Design.app/Contents/Resources/open-design/design-systems/openai/tokens.css`）。
+ * 本文件是该体系的 token 绑定层，取值逐条对齐、不新增品牌强调色、不做本地化改写；
+ * 设计体系的说明见 `docs/frontend-design.md` §2（视觉取值一律由体系决定）。
+ *
+ * 组件与页面**只用**这里的语义 token，禁止裸写色值/字号/圆角
+ * （ESLint `no-restricted-syntax` 对 `#rrggbb` 字面量报错，`src/styles/**` 与
+ * `src/app/primevue.ts` 是唯一豁免处——它们正是体系绑定层）。
+ * ─────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ─── 表面 ─────────────────────────────────────────────────────── */
+  --bg: #ffffff; /* 页面底色 */
+  --surface: #f5f5f5; /* pearl：卡片/浮起面板 */
+  --surface-warm: #fafafa; /* mist：分节底、页脚 */
+
+  /* ─── 前景 ─────────────────────────────────────────────────────── */
+  --fg: #0d0d0d; /* ink：主文本、品牌字标 */
+  --fg-2: #1a1a1a; /* soft black：同级标题 */
+  --muted: #6e6e6e; /* slate：次级文本、说明 */
+  --meta: #9b9b9b; /* ash：三级文本、占位 */
+
+  /* ─── 分隔线 ───────────────────────────────────────────────────── */
+  --border: #e5e5e5; /* hairline：标准分隔 */
+  --border-soft: #ededed; /* 白底上的卡片描边 */
+
+  /* ─── 强调 ─────────────────────────────────────────────────────── */
+  --accent: #10a37f; /* OpenAI Teal：链接、高亮、主操作 */
+  --accent-on: #ffffff;
+  --accent-hover: #0a7a5e;
+  --accent-active: color-mix(in oklab, var(--accent), black 14%);
+
+  /* ─── 语义 ─────────────────────────────────────────────────────── */
+  --success: #10a37f;
+  --warn: #f5a623; /* amber：警示（范围缺失、配置不完整） */
+  --danger: #ef4146; /* error：校验错误与破坏性动作（裁决：共用危险语义） */
+
+  /* ─── 字体 ─────────────────────────────────────────────────────── */
+  /* 按裁决原样使用体系商业字体（个人内部应用，不对外分发）；回退链只兜底缺字体环境。 */
+  --font-display: 'Signifier', 'Source Serif Pro', Georgia, ui-serif, serif;
+  --font-body: 'Söhne', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'Söhne Mono', ui-monospace, 'JetBrains Mono', Menlo, Consolas, monospace;
+
+  /* ─── 字号 ─────────────────────────────────────────────────────── */
+  --text-xs: 12px; /* label */
+  --text-sm: 13px; /* caption、元信息、表格密集档 */
+  --text-base: 16px; /* body */
+  --text-lg: 18px; /* lede */
+  --text-xl: 20px; /* h3 */
+  --text-2xl: 28px; /* h2 章节标题 */
+  --text-3xl: 40px; /* h1 页面标题 */
+  --text-4xl: 56px; /* display：仅登录页与空状态等编辑性时刻 */
+
+  /* ─── 行高与字距 ───────────────────────────────────────────────── */
+  --leading-body: 1.65;
+  --leading-tight: 1.08;
+  --tracking-display: -0.02em;
+
+  /* ─── 间距（4px 栅格） ─────────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-12: 48px;
+  --space-16: 64px;
+
+  /* ─── 圆角 ─────────────────────────────────────────────────────── */
+  --radius-sm: 12px; /* 按钮、输入框 */
+  --radius-md: 16px; /* 卡片 */
+  --radius-lg: 16px;
+  --radius-pill: 9999px; /* chip、标签 */
+
+  /* ─── 海拔 ─────────────────────────────────────────────────────── */
+  --elev-flat: none;
+  --elev-ring: 0 0 0 1px var(--border);
+  --elev-raised: 0 4px 16px rgba(13, 13, 13, 0.06);
+
+  /* ─── 焦点 ─────────────────────────────────────────────────────── */
+  --focus-ring: 0 0 0 3px rgba(16, 163, 127, 0.12);
+
+  /* ─── 动效 ─────────────────────────────────────────────────────── */
+  --motion-fast: 150ms;
+  --motion-base: 220ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ─── 布局 ─────────────────────────────────────────────────────── */
+  --container-max: 1200px;
+  --container-gutter-desktop: 48px;
+  --container-gutter-tablet: 24px;
+  --container-gutter-phone: 24px;
+
+  /* ─── 控制台结构尺寸（体系未定义的**结构**扩展，取值仍取自上面 token）─── */
+  --shell-topbar-height: 56px;
+  --shell-sidenav-width: 220px;
+  --shell-sidenav-width-compact: 64px;
+  --shell-content-max: 1440px;
+  --control-height: 36px;
+}
