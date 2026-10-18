@@ -1,0 +1,42 @@
+{
+  "name": "@youzhao/server",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "有招平台后端：Fastify + PostgreSQL（只做 HTTP/MCP 共享的应用与领域层）",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "tsx watch main.ts",
+    "start": "tsx main.ts",
+    "migrate": "tsx db/migrate.ts",
+    "test": "node --import tsx --test --test-concurrency=1 test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test:fast": "node --import tsx --test test/*.test.ts",
+    "migrate:legacy": "tsx db/migrate-legacy.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.3",
+    "@fastify/rate-limit": "^11.2.1",
+    "@modelcontextprotocol/fastify": "^2.0.1",
+    "@modelcontextprotocol/node": "^2.1.1",
+    "@modelcontextprotocol/server": "^2.3.1",
+    "@youzhao/contracts": "link:../packages/contracts",
+    "fastify": "^5.12.7",
+    "kysely": "^0.29.7",
+    "pg": "^8.23.1",
+    "zod": "^4.2.0"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.10",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^24.9.2",
+    "@types/pg": "^8.23.1",
+    "eslint": "^10.13.0",
+    "tsx": "^4.23.15",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.71.2"
+  }
+}
