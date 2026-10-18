@@ -1,0 +1,32 @@
+# 有招 api 镜像：Fastify + PostgreSQL，同时承载 MCP Streamable HTTP。
+# 说明：按 docs/architecture-design.md §3.1，TypeScript 以 tsx 直跑（不做 tsc 产物），
+# 因此镜像内保留 devDependencies（tsx/esbuild）。契约包 @youzhao/contracts 通过 link: 引用，
+# 其 generated/*.ts 由构建阶段现场生成，保证与 schemas/*.json 一致。
+FROM node:24-alpine AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
+WORKDIR /app
+
+FROM base AS deps
+COPY package.json ./
+COPY packages/contracts/package.json packages/contracts/
+COPY server/package.json server/
+COPY server/pnpm-workspace.yaml server/
+RUN pnpm -C packages/contracts install --frozen-lockfile=false \
+ && pnpm -C server install --frozen-lockfile=false
+
+FROM deps AS build
+COPY packages/contracts packages/contracts
+COPY server server
+# 契约产物必须与 schema 同步；不一致时构建失败（--check）
+RUN node packages/contracts/scripts/generate.mjs
+
+FROM build AS runtime
+ENV NODE_ENV=production APP_ENV=production
+# 产物卷（PREVIEW_STORAGE_PATH 指向这里）
+RUN mkdir -p /data/youzhao/previews && chown -R node:node /data/youzhao
+USER node
+WORKDIR /app/server
+EXPOSE 3000
+# 启动前先跑迁移（幂等；未执行的迁移会在这里补齐），再起服务
+CMD ["sh", "-c", "node --import tsx db/migrate.ts && node --import tsx main.ts"]

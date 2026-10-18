@@ -1,0 +1,20 @@
+# 有招 web 镜像：构建 SPA 静态产物，用 nginx 提供（只服务静态资源，不做反向代理）
+FROM node:24-alpine AS build
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
+RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
+WORKDIR /app
+COPY package.json ./
+COPY packages/contracts/package.json packages/contracts/
+COPY server/package.json server/
+COPY web/package.json web/
+COPY web/pnpm-workspace.yaml web/
+RUN pnpm -C packages/contracts install --frozen-lockfile=false \
+ && pnpm -C web install --frozen-lockfile=false
+COPY packages/contracts packages/contracts
+COPY web web
+RUN node packages/contracts/scripts/generate.mjs && pnpm -C web build
+
+FROM nginx:1.27-alpine AS runtime
+COPY deploy/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/web/dist /usr/share/nginx/html
+EXPOSE 80

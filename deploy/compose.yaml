@@ -1,0 +1,181 @@
+# =============================================================================
+# 有招 · 单机生产版编排（M5 部署切片）
+# -----------------------------------------------------------------------------
+# 用法：
+#   首次部署   bash deploy/scripts/install.sh      （会生成/校验 deploy/.env 并建数据目录）
+#   升级       bash deploy/scripts/upgrade.sh      （先备份 → 迁移 → 重建 → 等健康）
+#   备份/恢复  bash deploy/scripts/backup.sh / restore.sh --help
+# 配置来源：同目录 deploy/.env（由 deploy/.env.example 复制而来）。本文件不含任何密钥明文，
+#          全部用 ${VAR} 插值；缺失值在 compose 阶段直接报错（:? 语法）。
+# 数据落盘：${DATA_ROOT}/{postgres,previews}（默认 /data/youzhao，见
+#          docs/deployment-rules.md「卷与路径」）。命名卷只是给这两条绑定挂载一个
+#          稳定的卷名（docker volume ls / inspect 可见），实际数据仍在宿主目录里，
+#          backup.sh 直接打包这些目录，与本机已有的目录约定不冲突。
+# 端口暴露：只有 gateway 对外发布端口；postgres/api/web 只走 compose 内部网络。
+# =============================================================================
+name: ${COMPOSE_PROJECT_NAME:-youzhao}
+
+x-restart: &default-restart unless-stopped
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+services:
+  # ── PostgreSQL 16：卷持久化 + pg_isready 健康检查 ─────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: youzhao-postgres
+    restart: *default-restart
+    environment:
+      POSTGRES_DB: "${POSTGRES_DB:?POSTGRES_DB 未设置：请先 cp deploy/.env.example deploy/.env 并填写}"
+      POSTGRES_USER: "${POSTGRES_USER:?POSTGRES_USER 未设置（见 deploy/.env）}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?POSTGRES_PASSWORD 未设置；不要用 change_me，起随机值}"
+      # 只用 UTF8 编码（中文必需）；排序规则沿用镜像默认 locale，避免 alpine 缺 locale 导致 initdb 失败
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+      # 绑定挂载下用子目录存数据：宿主机目录里可能混入 lost+found 等，initdb 会拒绝非空目录
+      PGDATA: /var/lib/postgresql/data/pgdata
+      TZ: ${TZ:-Asia/Shanghai}
+    command:
+      - postgres
+      - -c
+      - timezone=${TZ:-Asia/Shanghai}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -p 5432 -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    # 只在 compose 网络内可达（不写 ports，避免数据库暴露到宿主机）
+    expose:
+      - "5432"
+    logging: *default-logging
+    networks:
+      - youzhao
+
+  # ── api：Fastify + PostgreSQL，同时承载 MCP Streamable HTTP ───────────────
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.api
+    image: ${COMPOSE_PROJECT_NAME:-youzhao}-api:${IMAGE_TAG:-latest}
+    container_name: youzhao-api
+    restart: *default-restart
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # 应用变量全部来自 deploy/.env（与 server/.env.example 同名同义）
+    env_file:
+      - .env
+    environment:
+      # 下面这些是「容器内固定值」，覆盖 .env 里的同名项，防止误配写到未挂载的路径。
+      APP_ENV: "${APP_ENV:?APP_ENV 未设置：生产必须 production（见 deploy/.env）}"
+      DB_DRIVER: "${DB_DRIVER:?DB_DRIVER 未设置：生产必须 postgres（见 deploy/.env）}"
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: "3000"
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: "5432"
+      PREVIEW_STORAGE_PATH: /data/youzhao/previews
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - preview-data:/data/youzhao/previews
+      # 旧栈数据迁移（docs/architecture-design.md §8「数据迁移要点」）时按需启用：
+      # - ${LEGACY_DATA_DIR:-./legacy}:/legacy:ro
+      # 然后执行：
+      #   docker compose run --rm --no-deps api node --import tsx db/migrate-legacy.ts --data-dir /legacy
+    expose:
+      - "3000"
+    healthcheck:
+      # 无鉴权探活；503（依赖不可用）也会被判为不健康
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/api/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      # 启动时先跑迁移，给足冷启动时间
+      start_period: 90s
+    logging: *default-logging
+    networks:
+      - youzhao
+
+  # ── web：SPA 静态站点（自带 nginx，只服务静态资源）────────────────────────
+  web:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+    image: ${COMPOSE_PROJECT_NAME:-youzhao}-web:${IMAGE_TAG:-latest}
+    container_name: youzhao-web
+    restart: *default-restart
+    expose:
+      - "80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    logging: *default-logging
+    networks:
+      - youzhao
+
+  # ── gateway：唯一入口（应用域 + 预览域），nginx 1.27 ─────────────────────
+  gateway:
+    image: nginx:1.27-alpine
+    container_name: youzhao-gateway
+    restart: *default-restart
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    environment:
+      # 下面三个变量是 gateway/nginx.conf 模板的 envsubst 输入
+      GATEWAY_APP_HOST: "${GATEWAY_APP_HOST:?GATEWAY_APP_HOST 未设置（应用域主机名，见 deploy/.env）}"
+      GATEWAY_PREVIEW_HOST: "${GATEWAY_PREVIEW_HOST:?GATEWAY_PREVIEW_HOST 未设置（预览域主机名，见 deploy/.env）}"
+      API_JSON_BODY_LIMIT_BYTES: ${API_JSON_BODY_LIMIT_BYTES:-5242880}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      # 单文件挂载为模板：官方镜像入口脚本 envsubst 渲染到 /etc/nginx/conf.d/youzhao.conf
+      - ./gateway/nginx.conf:/etc/nginx/templates/youzhao.conf.template:ro
+      # TLS（默认关闭）：启用时取消注释，并把证书放到 GATEWAY_TLS_CERT_DIR
+      # - ${GATEWAY_TLS_CERT_DIR:-./certs}:/etc/nginx/certs:ro
+    ports:
+      - "${GATEWAY_HTTP_PORT:-80}:80"                  # 应用域
+      - "${GATEWAY_PREVIEW_HTTP_PORT:-8080}:8080"      # 预览域
+    healthcheck:
+      # 经网关打 api 的探活：api 不可用时网关也会被判为不健康
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/health || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    logging: *default-logging
+    networks:
+      - youzhao
+
+# 命名卷 = 宿主目录绑定（docs/deployment-rules.md「卷与路径」要求数据落在 /data/youzhao 下）；
+# 用命名卷是为了让 docker volume ls / inspect 及备份脚本有稳定的卷名。
+volumes:
+  postgres-data:
+    name: ${COMPOSE_PROJECT_NAME:-youzhao}-postgres-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_ROOT:-/data/youzhao}/postgres
+  preview-data:
+    name: ${COMPOSE_PROJECT_NAME:-youzhao}-preview-data
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_ROOT:-/data/youzhao}/previews
+
+networks:
+  youzhao:
+    name: ${COMPOSE_PROJECT_NAME:-youzhao}-net
+    driver: bridge

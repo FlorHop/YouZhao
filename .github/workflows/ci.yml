@@ -1,0 +1,43 @@
+name: ci
+
+on:
+  push:
+    branches: [rebuild-v2, main]
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # 两个包各自独立（M4 才引入根 pnpm workspace），所以各自安装
+      - name: Install
+        run: |
+          pnpm -C packages/contracts install --frozen-lockfile
+          pnpm -C server install --frozen-lockfile
+
+      # 契约是唯一事实来源：生成物与 schemas 不同步就说明有人改了 schema 没跑 gen
+      - name: Contracts in sync
+        run: pnpm -C packages/contracts check
+
+      - name: Contracts tests
+        run: pnpm -C packages/contracts test
+
+      - name: Server lint
+        run: pnpm -C server lint
+
+      - name: Server typecheck
+        run: pnpm -C server typecheck
+
+      # 迁移与健康检查用 PGlite（真 PostgreSQL 的 WASM 版），因此这里不需要 postgres service
+      - name: Server tests
+        run: pnpm -C server test

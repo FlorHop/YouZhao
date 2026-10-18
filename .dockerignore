@@ -1,0 +1,13 @@
+node_modules
+**/node_modules
+**/dist
+**/coverage
+**/.DS_Store
+.git
+.gitignore
+docs
+web/node_modules
+server/node_modules
+packages/contracts/node_modules
+data
+deploy
