@@ -1,0 +1,21 @@
+{
+  "$id": "embed/ticket",
+  "title": "EmbedTicketRequest",
+  "description": "POST /api/embed/tickets 请求体（docs/architecture-design.md §3.7 嵌入场景）：共享密钥放在 X-Embed-Secret 头，不放请求体",
+  "type": "object",
+  "required": ["blueprintId"],
+  "properties": {
+    "blueprintId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "嵌入时通常固定版本；省略取最新未归档版本"
+    }
+  },
+  "additionalProperties": false
+}

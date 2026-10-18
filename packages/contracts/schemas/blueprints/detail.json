@@ -1,0 +1,225 @@
+{
+  "$id": "blueprints/detail",
+  "$defs": {
+    "BlueprintSummary": {
+      "type": "object",
+      "description": "蓝图卡片摘要；列表一次返回卡片所需全部字段（禁止前端 N+1 补拉，architecture-design §6.4）",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "不透明蓝图 id，如 bp_xxx"
+        },
+        "name": {
+          "type": "string",
+          "description": "蓝图名称"
+        },
+        "summary": {
+          "type": "string",
+          "description": "概述"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "标签"
+        },
+        "groupId": {
+          "type": "string",
+          "description": "所属分组 id"
+        },
+        "groupName": {
+          "type": "string",
+          "description": "所属分组名（卡片上直接呈现，避免再查分组表）"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "archived"
+          ],
+          "description": "蓝图状态"
+        },
+        "versionCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "可用版本数量（不含已归档版本）"
+        },
+        "latestVersion": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BlueprintVersionSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "最新版本摘要；无任何版本时为 null"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间（ISO 8601）"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "最近更新时间（ISO 8601）"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "归档时间；null = 未归档"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "summary",
+        "tags",
+        "groupId",
+        "groupName",
+        "status",
+        "versionCount",
+        "latestVersion",
+        "createdAt",
+        "updatedAt",
+        "archivedAt"
+      ],
+      "additionalProperties": false
+    },
+    "BlueprintVersionSummary": {
+      "type": "object",
+      "description": "版本摘要；列表与详情共用",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "版本号，同一蓝图内唯一"
+        },
+        "isLatest": {
+          "type": "boolean",
+          "description": "是否为当前最新版本"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "missing"
+          ],
+          "description": "产物是否完整可预览"
+        },
+        "publishSource": {
+          "type": "string",
+          "enum": [
+            "mcp",
+            "web",
+            "web-cover"
+          ],
+          "description": "发布来源：mcp / 页内发布 / 页内覆盖"
+        },
+        "publishNote": {
+          "type": "string",
+          "description": "发布说明"
+        },
+        "deployedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "发布时间（ISO 8601）"
+        },
+        "artifactBytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "产物字节数，未知为 null"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "归档时间；null = 未归档"
+        }
+      },
+      "required": [
+        "version",
+        "isLatest",
+        "status",
+        "publishSource",
+        "publishNote",
+        "deployedAt",
+        "artifactBytes",
+        "archivedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "title": "BlueprintDetailResponse",
+  "description": "GET /api/blueprints/:id 响应（docs/permission-design.md §6.4）：单蓝图详情与全部版本（含已归档版本，供恢复）",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "blueprint": {
+          "$ref": "#/$defs/BlueprintSummary"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlueprintVersionSummary"
+          },
+          "description": "版本列表，按发布时间倒序"
+        },
+        "capabilities": {
+          "type": "object",
+          "description": "当前请求者对这一蓝图的操作能力，前端据此装配操作区（不按身份猜）",
+          "properties": {
+            "canManage": {
+              "type": "boolean",
+              "description": "可维护（改名、移动、归档、覆盖、归档版本）"
+            },
+            "canPublish": {
+              "type": "boolean",
+              "description": "可发布新版本"
+            }
+          },
+          "required": [
+            "canManage",
+            "canPublish"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "blueprint",
+        "versions",
+        "capabilities"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "description": "请求 id"
+        }
+      },
+      "required": [
+        "requestId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "data",
+    "meta"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,33 @@
+{
+  "$id": "common/error",
+  "title": "ErrorResponse",
+  "description": "统一错误信封：所有非 2xx 响应体（docs/architecture-design.md §6.2）",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "稳定错误码，前端只按 code 分支，禁止解析 message 文本"
+        },
+        "message": {
+          "type": "string",
+          "description": "面向用户的中文说明，可随文案演进"
+        },
+        "details": {
+          "type": "object",
+          "additionalProperties": true,
+          "description": "结构化补充信息，如 outOfScope / current / field"
+        },
+        "requestId": {
+          "type": "string"
+        }
+      },
+      "required": ["code", "message", "requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["error"],
+  "additionalProperties": false
+}

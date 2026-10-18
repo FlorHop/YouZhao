@@ -1,0 +1,134 @@
+{
+  "$id": "tokens/list",
+  "title": "TokensListResponse",
+  "description": "GET /api/tokens 响应：当前调用者可见的 MCP Token 列表（平台所有者可见全平台；其他人只可见自己创建或绑定给自己的 Token）",
+  "type": "object",
+  "$defs": {
+    "McpTokenSummary": {
+      "type": "object",
+      "description": "MCP Token 摘要；列表须自带呈现与行操作所需的全部字段（architecture-design §6.4），明文令牌永不在此出现",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "不透明 Token id，如 tok_xxx"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Token 名称"
+        },
+        "tokenPrefix": {
+          "type": "string",
+          "description": "明文令牌前缀，仅用于辨认，不可用于鉴权"
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["read:blueprint", "publish:blueprint"]
+          },
+          "description": "授权范围；Token 能力 = 绑定用户能力 ∩ scope"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "disabled"],
+          "description": "Token 状态；disabled 后该 Token 立即不可用"
+        },
+        "boundUserId": {
+          "type": "string",
+          "description": "绑定用户 id：Token 以该用户的身份与权限调用"
+        },
+        "boundUserDisplayName": {
+          "type": "string",
+          "description": "绑定用户姓名（列表直接呈现，避免再查用户表）"
+        },
+        "createdByUserId": {
+          "type": "string",
+          "description": "创建者用户 id"
+        },
+        "createdByDisplayName": {
+          "type": "string",
+          "description": "创建者姓名"
+        },
+        "expiresAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "过期时间（ISO 8601）；null = 永不过期"
+        },
+        "lastUsedAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "最近一次使用时间（ISO 8601）；null = 从未使用"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间（ISO 8601）"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "tokenPrefix",
+        "scopes",
+        "status",
+        "boundUserId",
+        "boundUserDisplayName",
+        "createdByUserId",
+        "createdByDisplayName",
+        "expiresAt",
+        "lastUsedAt",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/McpTokenSummary"
+          },
+          "description": "当前页 Token 列表"
+        }
+      },
+      "required": ["items"],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "当前页码，从 1 开始"
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "每页条数，默认 20，上限 100"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "过滤后的总条数"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "请求 id，用于日志追溯"
+        }
+      },
+      "required": ["page", "pageSize", "total", "requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

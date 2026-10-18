@@ -1,0 +1,83 @@
+{
+  "$id": "users/grants",
+  "title": "UserGrantsResponse",
+  "description": "GET /api/users/:id/grants 响应（docs/permission-design.md §6.2）：列出某用户已有的查看授权及来源；本人查看自己的范围走 GET /api/me",
+  "type": "object",
+  "$defs": {
+    "ViewGrantItem": {
+      "type": "object",
+      "description": "一条已有查看授权",
+      "properties": {
+        "targetType": {
+          "type": "string",
+          "enum": ["group", "blueprint"],
+          "description": "目标资源类型"
+        },
+        "targetId": {
+          "type": "string",
+          "description": "目标资源 id"
+        },
+        "grantedByUserId": {
+          "type": "string",
+          "description": "授予者的用户 id"
+        },
+        "grantedByDisplayName": {
+          "type": "string",
+          "description": "授予者姓名，供列表直接展示"
+        },
+        "grantedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "授予时间（ISO 8601）"
+        }
+      },
+      "required": ["targetType", "targetId", "grantedByUserId", "grantedByDisplayName", "grantedAt"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ViewGrantItem"
+          },
+          "description": "当前页查看授权列表"
+        }
+      },
+      "required": ["items"],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "当前页码，从 1 开始"
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "每页条数，默认 20，上限 100"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "过滤后的总条数"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "请求 id，用于日志追溯"
+        }
+      },
+      "required": ["page", "pageSize", "total", "requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

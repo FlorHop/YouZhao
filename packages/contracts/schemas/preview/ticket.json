@@ -1,0 +1,27 @@
+{
+  "$id": "preview/ticket",
+  "title": "PreviewTicketRequest",
+  "description": "POST /api/preview-tickets 请求体（docs/architecture-design.md §3.7）：申请一次性预览票据，用于换取预览域受限 Cookie",
+  "type": "object",
+  "required": ["blueprintId", "purpose"],
+  "properties": {
+    "blueprintId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "目标蓝图 id"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "省略时取该蓝图最新的未归档版本"
+    },
+    "purpose": {
+      "type": "string",
+      "enum": ["preview", "embed"],
+      "description": "preview=工作台内预览（需查看权）；embed=嵌入场景（需嵌入共享密钥）"
+    }
+  },
+  "additionalProperties": false
+}

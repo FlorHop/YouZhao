@@ -1,0 +1,199 @@
+{
+  "$id": "auth/session",
+  "title": "SessionResponse",
+  "description": "当前会话视图（GET /api/me、登录成功后的响应体）；资料、能力与有效范围一次返回，供前端裁剪导航与操作区（docs/permission-design.md §6.1）",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "user": {
+          "type": "object",
+          "description": "本人资料（不含能力与范围；它们与 user 平级，便于前端分别驱动导航与授权面板）",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "不透明用户 id，如 usr_xxx"
+            },
+            "username": {
+              "type": "string",
+              "description": "登录名，全局唯一"
+            },
+            "displayName": {
+              "type": "string"
+            },
+            "email": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "phone": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "identity": {
+              "type": "string",
+              "enum": [
+                "owner",
+                "user_admin",
+                "member"
+              ],
+              "description": "互斥身份"
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "active",
+                "disabled"
+              ]
+            },
+            "mustChangePassword": {
+              "type": "boolean",
+              "description": "为 true 时前端强制进入修改密码流程"
+            },
+            "managedByUserIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              },
+              "description": "管理归属，可含多位用户管理员；空数组 = 未指派"
+            }
+          },
+          "required": [
+            "id",
+            "username",
+            "displayName",
+            "email",
+            "phone",
+            "identity",
+            "status",
+            "mustChangePassword",
+            "managedByUserIds"
+          ],
+          "additionalProperties": false
+        },
+        "capabilities": {
+          "type": "array",
+          "description": "业务能力；每条 = 能力 + 绑定的资源范围（目标字段与 viewGrants 统一为 targetType/targetId）",
+          "items": {
+            "type": "object",
+            "properties": {
+              "capability": {
+                "type": "string",
+                "enum": [
+                  "blueprint.manage",
+                  "blueprint.publish"
+                ]
+              },
+              "targetType": {
+                "type": "string",
+                "enum": [
+                  "group",
+                  "blueprint"
+                ]
+              },
+              "targetId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "capability",
+              "targetType",
+              "targetId"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "viewGrants": {
+          "type": "array",
+          "description": "本人获得的查看授权（含他人授予的只读项）",
+          "items": {
+            "type": "object",
+            "properties": {
+              "targetType": {
+                "type": "string",
+                "enum": [
+                  "group",
+                  "blueprint"
+                ]
+              },
+              "targetId": {
+                "type": "string"
+              },
+              "grantedByUserId": {
+                "type": "string"
+              },
+              "grantedByDisplayName": {
+                "type": "string",
+                "description": "授予者姓名，前端直接展示「由 X 授予」"
+              },
+              "grantedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            },
+            "required": [
+              "targetType",
+              "targetId",
+              "grantedByUserId",
+              "grantedByDisplayName",
+              "grantedAt"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "delegableScopes": {
+          "type": "array",
+          "description": "可委派范围（派生字段）：用户管理员等于其自身查看范围；其他身份为空数组",
+          "items": {
+            "type": "object",
+            "properties": {
+              "targetType": {
+                "type": "string",
+                "enum": [
+                  "group",
+                  "blueprint"
+                ]
+              },
+              "targetId": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "targetType",
+              "targetId"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "user",
+        "capabilities",
+        "viewGrants",
+        "delegableScopes"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "requestId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "data",
+    "meta"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,119 @@
+{
+  "$id": "users/list",
+  "title": "UsersListResponse",
+  "description": "GET /api/users 响应（docs/permission-design.md §6.2）：所有者返回全平台用户，用户管理员只返回自己管理的普通用户",
+  "type": "object",
+  "$defs": {
+    "UserSummary": {
+      "type": "object",
+      "description": "列表行的用户摘要；列表须自带呈现与行操作所需的全部字段（architecture-design §6.4）",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "不透明用户 id，如 usr_xxx"
+        },
+        "username": {
+          "type": "string",
+          "description": "登录名，全局唯一"
+        },
+        "displayName": {
+          "type": "string",
+          "description": "姓名"
+        },
+        "email": {
+          "type": ["string", "null"],
+          "description": "邮箱，未填为 null"
+        },
+        "phone": {
+          "type": ["string", "null"],
+          "description": "手机号，未填为 null"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "disabled"],
+          "description": "账号状态；disabled 即会话与 MCP Token 均已失效"
+        },
+        "identity": {
+          "type": "string",
+          "enum": ["owner", "user_admin", "member"],
+          "description": "互斥身份（owner 全库唯一）"
+        },
+        "managedByUserIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "管理归属：可含多位用户管理员；空数组 = 暂未指派"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间（ISO 8601）"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "最近更新时间（ISO 8601）"
+        }
+      },
+      "required": [
+        "id",
+        "username",
+        "displayName",
+        "email",
+        "phone",
+        "status",
+        "identity",
+        "managedByUserIds",
+        "createdAt",
+        "updatedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/UserSummary"
+          },
+          "description": "当前页用户列表"
+        }
+      },
+      "required": ["items"],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "当前页码，从 1 开始"
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "每页条数，默认 20，上限 100"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "过滤后的总条数"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "请求 id，用于日志追溯"
+        }
+      },
+      "required": ["page", "pageSize", "total", "requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

@@ -1,0 +1,65 @@
+{
+  "$id": "preview/ticket-response",
+  "title": "PreviewTicketResponse",
+  "description": "预览票据响应（docs/architecture-design.md §3.7）：票据原文只在此处出现一次，服务端只存哈希；换票地址由服务端生成，前端不得自行拼接",
+  "type": "object",
+  "$defs": {
+    "PreviewTicket": {
+      "type": "object",
+      "description": "一次性票据内容；同一票据无法二次换票",
+      "required": ["ticket", "expiresAt", "url", "blueprintId", "version", "purpose"],
+      "properties": {
+        "ticket": {
+          "type": "string",
+          "minLength": 1,
+          "description": "一次性票据原文（yz_pt_…），只在本次响应中出现，立即随换票地址使用"
+        },
+        "expiresAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "票据过期时间（默认 60s）"
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "description": "换票地址（预览域 /preview/p/{blueprintId}/{version}/?t=…），由服务端生成"
+        },
+        "blueprintId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "票据绑定的蓝图；换票时与请求路径不一致即拒绝"
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1,
+          "description": "票据绑定的版本"
+        },
+        "purpose": {
+          "type": "string",
+          "enum": ["preview", "embed"],
+          "description": "preview=工作台内预览（需查看权）；embed=嵌入换票（需共享密钥）"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "data": {
+      "$ref": "#/$defs/PreviewTicket"
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "请求 id，用于日志追溯"
+        }
+      },
+      "required": ["requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

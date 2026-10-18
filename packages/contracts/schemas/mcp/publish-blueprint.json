@@ -1,0 +1,63 @@
+{
+  "$id": "mcp/publish-blueprint",
+  "title": "McpPublishBlueprintInput",
+  "description": "MCP 工具 youzhao_publish_blueprint 的入参：发布一次蓝图产物；不带 blueprintId 即新建蓝图，带 blueprintId 即在该蓝图上发布新版本",
+  "type": "object",
+  "properties": {
+    "blueprintId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "省略 = 新建蓝图，提供 = 在该蓝图上发布新版本"
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "蓝图名称"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "概述"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 32
+      },
+      "description": "标签，每项 1..32 字符"
+    },
+    "groupId": {
+      "type": "string",
+      "description": "所属分组 id"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "description": "版本号，同一蓝图内唯一"
+    },
+    "html": {
+      "type": "string",
+      "description": "产物入口 HTML 文本"
+    },
+    "markdown": {
+      "type": "string",
+      "description": "产物配套 Markdown"
+    },
+    "publishNote": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "发布说明"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "相同 key 的重复调用返回同一结果"
+    }
+  },
+  "required": ["name", "groupId", "version", "html"],
+  "additionalProperties": false
+}

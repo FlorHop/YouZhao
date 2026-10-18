@@ -1,0 +1,107 @@
+{
+  "$id": "tokens/create-response",
+  "title": "CreateMcpTokenResponse",
+  "description": "POST /api/tokens 响应：与列表摘要同字段，外加明文令牌。明文令牌只在此响应出现一次，服务端不保存、之后无法再取",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "description": "新建成的 MCP Token：摘要字段 + 明文令牌（本文件内展开，因生成器不支持跨文件 $ref）",
+      "properties": {
+        "token": {
+          "type": "string",
+          "description": "明文令牌只在此响应出现一次，请立即保存；服务端仅保存摘要"
+        },
+        "id": {
+          "type": "string",
+          "description": "不透明 Token id，如 tok_xxx"
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "Token 名称"
+        },
+        "tokenPrefix": {
+          "type": "string",
+          "description": "明文令牌前缀，仅用于辨认，不可用于鉴权"
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": ["read:blueprint", "publish:blueprint"]
+          },
+          "description": "授权范围；Token 能力 = 绑定用户能力 ∩ scope"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["active", "disabled"],
+          "description": "Token 状态；disabled 后该 Token 立即不可用"
+        },
+        "boundUserId": {
+          "type": "string",
+          "description": "绑定用户 id：Token 以该用户的身份与权限调用"
+        },
+        "boundUserDisplayName": {
+          "type": "string",
+          "description": "绑定用户姓名"
+        },
+        "createdByUserId": {
+          "type": "string",
+          "description": "创建者用户 id"
+        },
+        "createdByDisplayName": {
+          "type": "string",
+          "description": "创建者姓名"
+        },
+        "expiresAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "过期时间（ISO 8601）；null = 永不过期"
+        },
+        "lastUsedAt": {
+          "type": ["string", "null"],
+          "format": "date-time",
+          "description": "最近一次使用时间（ISO 8601）；null = 从未使用"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间（ISO 8601）"
+        }
+      },
+      "required": [
+        "token",
+        "id",
+        "name",
+        "tokenPrefix",
+        "scopes",
+        "status",
+        "boundUserId",
+        "boundUserDisplayName",
+        "createdByUserId",
+        "createdByDisplayName",
+        "expiresAt",
+        "lastUsedAt",
+        "createdAt"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "description": "请求 id"
+        }
+      },
+      "required": ["requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

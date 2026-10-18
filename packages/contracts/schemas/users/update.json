@@ -1,0 +1,28 @@
+{
+  "$id": "users/update",
+  "title": "UpdateUserRequest",
+  "description": "PATCH /api/users/:id 请求体（docs/permission-design.md §6.2）：只改资料与状态；身份与权限字段被 additionalProperties:false 拒绝",
+  "type": "object",
+  "properties": {
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "姓名"
+    },
+    "email": {
+      "type": "string",
+      "description": "邮箱，可留空字符串"
+    },
+    "phone": {
+      "type": "string",
+      "description": "手机号，可留空字符串"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "disabled"],
+      "description": "账号状态；停用会立即吊销该用户的会话与 MCP Token"
+    }
+  },
+  "additionalProperties": false
+}

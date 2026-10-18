@@ -1,0 +1,81 @@
+{
+  "$id": "users/create",
+  "title": "CreateUserRequest",
+  "description": "POST /api/users 请求体（docs/permission-design.md §6.2）：所有者可指定身份与归属；用户管理员只能创建 member，且自动归自己",
+  "type": "object",
+  "$defs": {
+    "ViewGrantTarget": {
+      "type": "object",
+      "description": "一条查看授权的目标资源",
+      "properties": {
+        "targetType": {
+          "type": "string",
+          "enum": [
+            "group",
+            "blueprint"
+          ],
+          "description": "目标资源类型"
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "目标资源 id"
+        }
+      },
+      "required": [
+        "targetType",
+        "targetId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "username": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "登录名，全局唯一"
+    },
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "姓名"
+    },
+    "email": {
+      "type": "string",
+      "description": "邮箱，可留空字符串"
+    },
+    "phone": {
+      "type": "string",
+      "description": "手机号，可留空字符串"
+    },
+    "password": {
+      "type": "string",
+      "minLength": 8,
+      "maxLength": 256,
+      "description": "初始密码（一次性），首登强制修改"
+    },
+    "viewGrants": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ViewGrantTarget"
+      },
+      "description": "可选：初始查看授权，不得超过操作者的可委派范围"
+    },
+    "managedByUserIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "可选：管理归属（仅所有者可传；用户管理员创建的成员自动归自己）"
+    }
+  },
+  "required": [
+    "username",
+    "displayName",
+    "password"
+  ],
+  "additionalProperties": false
+}

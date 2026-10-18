@@ -1,0 +1,54 @@
+{
+  "$id": "blueprints/create",
+  "title": "CreateBlueprintRequest",
+  "description": "POST /api/blueprints 的字段契约（docs/permission-design.md §6.4）。注意：实际请求是 multipart/form-data —— 这些字段随产物包一起提交，服务端解析 form 字段后按本 schema 校验",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "蓝图名称"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "概述，默认空串"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 32
+      },
+      "maxItems": 20,
+      "description": "标签"
+    },
+    "groupId": {
+      "type": "string",
+      "description": "所属分组 id；省略则落到默认分组"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "description": "首个版本号"
+    },
+    "publishNote": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "发布说明，默认空串"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "maxLength": 128,
+      "description": "幂等键；同一键重复提交返回首次结果"
+    }
+  },
+  "required": [
+    "name",
+    "version"
+  ],
+  "additionalProperties": false
+}

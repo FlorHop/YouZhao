@@ -1,0 +1,22 @@
+{
+  "$id": "mcp/create-blueprint-group",
+  "title": "McpCreateBlueprintGroupInput",
+  "description": "MCP 工具 youzhao_create_blueprint_group 的入参：新建一个蓝图分组",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 40,
+      "description": "分组名，全局唯一"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "相同 key 的重复调用返回同一结果"
+    }
+  },
+  "required": ["name"],
+  "additionalProperties": false
+}

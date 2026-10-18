@@ -1,0 +1,18 @@
+{
+  "$id": "users/managed-by",
+  "title": "SetManagedByRequest",
+  "description": "PUT /api/users/:id/managed-by 请求体（仅所有者，docs/permission-design.md §6.2）：整体替换管理归属集合",
+  "type": "object",
+  "properties": {
+    "managerIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "新的管理归属集合，整体替换旧集合；空数组 = 未指派给任何用户管理员"
+    }
+  },
+  "required": ["managerIds"],
+  "additionalProperties": false
+}

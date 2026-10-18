@@ -1,0 +1,25 @@
+{
+  "name": "@youzhao/contracts",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "有招平台契约包：JSON Schema 为唯一事实来源，生成 TS 类型与运行时 schema 对象",
+  "exports": {
+    ".": "./generated/index.ts",
+    "./schemas": "./generated/schemas.ts",
+    "./version": "./generated/version.ts",
+    "./types": "./generated/types.ts"
+  },
+  "scripts": {
+    "gen": "node scripts/generate.mjs",
+    "check": "node scripts/generate.mjs --check",
+    "test": "node --test test/*.test.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "json-schema-to-ts": "^3.1.1"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}

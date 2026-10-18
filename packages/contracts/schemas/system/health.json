@@ -1,0 +1,50 @@
+{
+  "$id": "system/health",
+  "title": "HealthResponse",
+  "description": "健康检查响应（docs/architecture-design.md §3.8、docs/deployment-rules.md §12）",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": ["ok", "degraded"]
+        },
+        "time": {
+          "type": "string",
+          "description": "ISO 8601 时间戳"
+        },
+        "contractVersion": {
+          "type": "string",
+          "description": "契约包版本，用于排查前后端契约错位（§6.1 规则 3）"
+        },
+        "services": {
+          "type": "object",
+          "properties": {
+            "database": {
+              "type": "string",
+              "enum": ["up", "down"]
+            }
+          },
+          "required": ["database"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["status", "time", "contractVersion", "services"],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        }
+      },
+      "required": ["requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

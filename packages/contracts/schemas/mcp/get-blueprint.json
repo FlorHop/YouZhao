@@ -1,0 +1,22 @@
+{
+  "$id": "mcp/get-blueprint",
+  "title": "McpGetBlueprintInput",
+  "description": "MCP 工具 youzhao_get_blueprint 的入参：读取一份蓝图的元数据与版本列表",
+  "type": "object",
+  "properties": {
+    "blueprintId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "蓝图 id，如 bp_xxx"
+    },
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "指定版本号；省略 = 返回最新版本的元数据"
+    }
+  },
+  "required": ["blueprintId"],
+  "additionalProperties": false
+}

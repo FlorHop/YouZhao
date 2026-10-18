@@ -1,0 +1,20 @@
+{
+  "$id": "auth/login",
+  "title": "LoginRequest",
+  "description": "登录请求体（docs/architecture-design.md §3.4）",
+  "type": "object",
+  "properties": {
+    "username": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "password": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    }
+  },
+  "required": ["username", "password"],
+  "additionalProperties": false
+}

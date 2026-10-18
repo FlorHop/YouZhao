@@ -1,0 +1,108 @@
+{
+  "$id": "blueprint-groups/list",
+  "title": "BlueprintGroupsListResponse",
+  "description": "GET /api/blueprint-groups 响应（docs/permission-design.md §6.4）：只返回授权范围内的分组；M1 仅需分组最小形状，M2 再扩展蓝图字段",
+  "type": "object",
+  "$defs": {
+    "BlueprintGroupSummary": {
+      "type": "object",
+      "description": "分组摘要",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "不透明分组 id，如 grp_xxx"
+        },
+        "name": {
+          "type": "string",
+          "description": "分组名，全局唯一"
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "是否默认分组（不可归档、恒首位）"
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "排序序号，越小越靠前"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "归档时间（ISO 8601）；null = 未归档"
+        },
+        "blueprintCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "该分组下可见蓝图数量（卡片数与区头计数同源）"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isDefault",
+        "sortOrder",
+        "archivedAt",
+        "blueprintCount"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlueprintGroupSummary"
+          },
+          "description": "当前页分组列表"
+        }
+      },
+      "required": [
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "当前页码，从 1 开始"
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "每页条数，默认 20，上限 100"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "过滤后的总条数"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "请求 id，用于日志追溯"
+        }
+      },
+      "required": [
+        "page",
+        "pageSize",
+        "total",
+        "requestId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "data",
+    "meta"
+  ],
+  "additionalProperties": false
+}

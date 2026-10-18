@@ -1,0 +1,42 @@
+{
+  "$id": "users/capabilities",
+  "title": "SetUserCapabilitiesRequest",
+  "description": "PUT /api/users/:id/capabilities 请求体（仅所有者，docs/permission-design.md §6.2）：整体设置业务能力与资源范围；能力必须显式带范围",
+  "type": "object",
+  "$defs": {
+    "CapabilityGrant": {
+      "type": "object",
+      "description": "一条业务能力及其资源范围",
+      "properties": {
+        "capability": {
+          "type": "string",
+          "enum": ["blueprint.manage", "blueprint.publish"],
+          "description": "业务能力"
+        },
+        "targetType": {
+          "type": "string",
+          "enum": ["group", "blueprint"],
+          "description": "目标资源类型"
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "目标资源 id"
+        }
+      },
+      "required": ["capability", "targetType", "targetId"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/CapabilityGrant"
+      },
+      "description": "完整的能力集合，整体替换旧集合；空数组 = 收回全部业务能力"
+    }
+  },
+  "required": ["capabilities"],
+  "additionalProperties": false
+}

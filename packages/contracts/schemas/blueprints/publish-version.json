@@ -1,0 +1,28 @@
+{
+  "$id": "blueprints/publish-version",
+  "title": "PublishBlueprintVersionRequest",
+  "description": "POST /api/blueprints/:id/versions 的字段契约（multipart）：发布新版本并置为最新",
+  "type": "object",
+  "properties": {
+    "version": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "description": "版本号，同蓝图内唯一"
+    },
+    "publishNote": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "发布说明"
+    },
+    "makeLatest": {
+      "type": "boolean",
+      "description": "是否置为最新版本；省略时按 true 处理（发布即置最新）"
+    }
+  },
+  "required": [
+    "version"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,27 @@
+{
+  "$id": "mcp/delete-blueprint-version",
+  "title": "McpDeleteBlueprintVersionInput",
+  "description": "MCP 工具 youzhao_delete_blueprint_version 的入参：删除蓝图的一个版本",
+  "type": "object",
+  "properties": {
+    "blueprintId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "蓝图 id，如 bp_xxx"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "description": "要删除的版本号"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "相同 key 的重复调用返回同一结果"
+    }
+  },
+  "required": ["blueprintId", "version"],
+  "additionalProperties": false
+}

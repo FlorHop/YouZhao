@@ -1,0 +1,62 @@
+{
+  "$id": "mcp/get-blueprint-artifact-output",
+  "title": "McpGetBlueprintArtifactOutput",
+  "description": "MCP 工具 youzhao.get_blueprint_artifact 的返回结构：文本产物内联（text），HTML/多文件产物返回 files[] 清单与一次性入口票据（url/expiresAt）；不返回裸磁盘路径。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "blueprintId": {
+      "type": "string",
+      "description": "蓝图 id"
+    },
+    "version": {
+      "type": "string",
+      "description": "版本号"
+    },
+    "entry": {
+      "type": "string",
+      "description": "入口文件名（相对产物根）"
+    },
+    "files": {
+      "type": "array",
+      "description": "产物文件清单（相对路径 + 字节数）",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "相对产物根的路径"
+          },
+          "bytes": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "文件字节数"
+          }
+        },
+        "required": [
+          "path",
+          "bytes"
+        ]
+      }
+    },
+    "text": {
+      "type": "string",
+      "description": "单文件文本产物的正文（仅 Markdown/HTML/文本且 ≤512 KiB 时内联）"
+    },
+    "url": {
+      "type": "string",
+      "description": "非内联产物的一次性入口票据 URL（60 秒内有效，单次使用）"
+    },
+    "expiresAt": {
+      "type": "string",
+      "description": "票据过期时间（ISO 8601）"
+    }
+  },
+  "required": [
+    "blueprintId",
+    "version",
+    "entry",
+    "files"
+  ]
+}

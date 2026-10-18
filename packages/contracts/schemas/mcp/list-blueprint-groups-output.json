@@ -1,0 +1,66 @@
+{
+  "$id": "mcp/list-blueprint-groups-output",
+  "title": "McpListBlueprintGroupsOutput",
+  "description": "MCP 工具 youzhao.list_blueprint_groups 的返回结构：绑定用户可见的分组。",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "groups": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/BlueprintGroupSummary"
+      },
+      "description": "可见分组列表"
+    }
+  },
+  "required": [
+    "groups"
+  ],
+  "$defs": {
+    "BlueprintGroupSummary": {
+      "type": "object",
+      "description": "分组摘要",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "不透明分组 id，如 grp_xxx"
+        },
+        "name": {
+          "type": "string",
+          "description": "分组名，全局唯一"
+        },
+        "isDefault": {
+          "type": "boolean",
+          "description": "是否默认分组（不可归档、恒首位）"
+        },
+        "sortOrder": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "排序序号，越小越靠前"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "归档时间（ISO 8601）；null = 未归档"
+        },
+        "blueprintCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "该分组下可见蓝图数量（卡片数与区头计数同源）"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "isDefault",
+        "sortOrder",
+        "archivedAt",
+        "blueprintCount"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

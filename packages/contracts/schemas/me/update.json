@@ -1,0 +1,23 @@
+{
+  "$id": "me/update",
+  "title": "UpdateMeRequest",
+  "description": "PATCH /api/me 请求体（docs/permission-design.md §6.2 本人自助）：只改本人资料；身份、状态、权限字段被 additionalProperties:false 拒绝",
+  "type": "object",
+  "properties": {
+    "displayName": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "姓名"
+    },
+    "email": {
+      "type": "string",
+      "description": "邮箱，可留空字符串"
+    },
+    "phone": {
+      "type": "string",
+      "description": "手机号，可留空字符串"
+    }
+  },
+  "additionalProperties": false
+}

@@ -1,0 +1,21 @@
+{
+  "$id": "blueprint-groups/reorder",
+  "title": "ReorderBlueprintGroupsRequest",
+  "description": "PATCH /api/blueprint-groups/reorder 请求体（docs/permission-design.md §6.4）：默认分组恒首位，不接受出现在 orderedIds 里",
+  "type": "object",
+  "properties": {
+    "orderedIds": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "maxItems": 200,
+      "description": "按目标顺序排列的非默认分组 id 列表（必须与当前分组集合完全一致，否则 INVALID_ARGUMENT）"
+    }
+  },
+  "required": [
+    "orderedIds"
+  ],
+  "additionalProperties": false
+}

@@ -1,0 +1,23 @@
+{
+  "$id": "blueprint-groups/create",
+  "title": "CreateBlueprintGroupRequest",
+  "description": "POST /api/blueprint-groups 请求体（docs/permission-design.md §6.4）：新建分组需覆盖目标范围的 blueprint.manage",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 60,
+      "description": "分组名，全局唯一"
+    },
+    "sortOrder": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "排序序号；省略则排到最后"
+    }
+  },
+  "required": [
+    "name"
+  ],
+  "additionalProperties": false
+}

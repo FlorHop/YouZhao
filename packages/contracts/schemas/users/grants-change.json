@@ -1,0 +1,63 @@
+{
+  "$id": "users/grants-change",
+  "title": "UserGrantsChangeRequest",
+  "description": "POST /api/users/:id/grants 请求体（docs/permission-design.md §6.2）：增量授予 / 撤销查看权；服务端只接受差异，拒绝整表替换（不变量 5）",
+  "type": "object",
+  "$defs": {
+    "GrantTarget": {
+      "type": "object",
+      "description": "一条待增删的查看授权目标",
+      "properties": {
+        "targetType": {
+          "type": "string",
+          "enum": ["group", "blueprint"],
+          "description": "目标资源类型"
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 1,
+          "description": "目标资源 id"
+        }
+      },
+      "required": ["targetType", "targetId"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "add": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GrantTarget"
+      },
+      "description": "新增的查看授权，必须落在操作者的可委派范围内"
+    },
+    "remove": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/GrantTarget"
+      },
+      "description": "撤销的查看授权"
+    }
+  },
+  "anyOf": [
+    {
+      "required": ["add"],
+      "properties": {
+        "add": {
+          "type": "array",
+          "minItems": 1
+        }
+      }
+    },
+    {
+      "required": ["remove"],
+      "properties": {
+        "remove": {
+          "type": "array",
+          "minItems": 1
+        }
+      }
+    }
+  ],
+  "additionalProperties": false
+}

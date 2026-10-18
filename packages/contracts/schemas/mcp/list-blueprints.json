@@ -1,0 +1,35 @@
+{
+  "$id": "mcp/list-blueprints",
+  "title": "McpListBlueprintsInput",
+  "description": "MCP 工具 youzhao_list_blueprints 的入参：分页列出 Token 授权范围内的蓝图；全部字段可选",
+  "type": "object",
+  "properties": {
+    "keyword": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "名称/概述关键词，模糊匹配"
+    },
+    "groupId": {
+      "type": "string",
+      "description": "只返回该分组下的蓝图；省略 = 不限分组"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "archived"],
+      "description": "按蓝图状态过滤；省略 = 默认只看 active"
+    },
+    "page": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "页码，从 1 开始"
+    },
+    "pageSize": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 100,
+      "description": "每页条数，默认 20，上限 100"
+    }
+  },
+  "additionalProperties": false
+}

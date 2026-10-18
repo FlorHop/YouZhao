@@ -1,0 +1,35 @@
+{
+  "$id": "tokens/create",
+  "title": "CreateMcpTokenRequest",
+  "description": "POST /api/tokens 请求体：创建 MCP Token；明文令牌只在创建响应中出现一次",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "Token 名称，用于在列表中辨识"
+    },
+    "scopes": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "enum": ["read:blueprint", "publish:blueprint"]
+      },
+      "description": "申请的能力范围；Token 能力 = 绑定用户能力 ∩ scope，交集之外的操作一律拒绝"
+    },
+    "expiresAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "过期时间（ISO 8601）；省略 = 永不过期"
+    },
+    "bindUserId": {
+      "type": "string",
+      "description": "仅平台所有者可传，用于替他人创建；其他人传了会被拒绝"
+    }
+  },
+  "required": ["name", "scopes"],
+  "additionalProperties": false
+}

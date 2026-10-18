@@ -1,0 +1,41 @@
+{
+  "$id": "blueprints/update",
+  "title": "UpdateBlueprintRequest",
+  "description": "PATCH /api/blueprints/:id 请求体（docs/permission-design.md §6.4）：改元数据、移动分组、归档；不含产物",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "description": "蓝图名称"
+    },
+    "summary": {
+      "type": "string",
+      "maxLength": 2000,
+      "description": "概述"
+    },
+    "tags": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "maxLength": 32
+      },
+      "maxItems": 20,
+      "description": "标签（整体替换）"
+    },
+    "groupId": {
+      "type": "string",
+      "description": "移动到的分组 id（归档分组与默认分组都不可作为目标时由服务端拒绝）"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "active",
+        "archived"
+      ],
+      "description": "改为 archived 即归档（不物理删除产物，可恢复）"
+    }
+  },
+  "additionalProperties": false
+}

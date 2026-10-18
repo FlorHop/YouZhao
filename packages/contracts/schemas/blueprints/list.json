@@ -1,0 +1,260 @@
+{
+  "$id": "blueprints/list",
+  "$defs": {
+    "BlueprintVersionSummary": {
+      "type": "object",
+      "description": "版本摘要；列表与详情共用",
+      "properties": {
+        "version": {
+          "type": "string",
+          "description": "版本号，同一蓝图内唯一"
+        },
+        "isLatest": {
+          "type": "boolean",
+          "description": "是否为当前最新版本"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "available",
+            "missing"
+          ],
+          "description": "产物是否完整可预览"
+        },
+        "publishSource": {
+          "type": "string",
+          "enum": [
+            "mcp",
+            "web",
+            "web-cover"
+          ],
+          "description": "发布来源：mcp / 页内发布 / 页内覆盖"
+        },
+        "publishNote": {
+          "type": "string",
+          "description": "发布说明"
+        },
+        "deployedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "发布时间（ISO 8601）"
+        },
+        "artifactBytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0,
+          "description": "产物字节数，未知为 null"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "归档时间；null = 未归档"
+        }
+      },
+      "required": [
+        "version",
+        "isLatest",
+        "status",
+        "publishSource",
+        "publishNote",
+        "deployedAt",
+        "artifactBytes",
+        "archivedAt"
+      ],
+      "additionalProperties": false
+    },
+    "BlueprintSummary": {
+      "type": "object",
+      "description": "蓝图卡片摘要；列表一次返回卡片所需全部字段（禁止前端 N+1 补拉，architecture-design §6.4）",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "不透明蓝图 id，如 bp_xxx"
+        },
+        "name": {
+          "type": "string",
+          "description": "蓝图名称"
+        },
+        "summary": {
+          "type": "string",
+          "description": "概述"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "标签"
+        },
+        "groupId": {
+          "type": "string",
+          "description": "所属分组 id"
+        },
+        "groupName": {
+          "type": "string",
+          "description": "所属分组名（卡片上直接呈现，避免再查分组表）"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "archived"
+          ],
+          "description": "蓝图状态"
+        },
+        "versionCount": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "可用版本数量（不含已归档版本）"
+        },
+        "latestVersion": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BlueprintVersionSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "最新版本摘要；无任何版本时为 null"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "创建时间（ISO 8601）"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "最近更新时间（ISO 8601）"
+        },
+        "archivedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time",
+          "description": "归档时间；null = 未归档"
+        }
+      },
+      "required": [
+        "id",
+        "name",
+        "summary",
+        "tags",
+        "groupId",
+        "groupName",
+        "status",
+        "versionCount",
+        "latestVersion",
+        "createdAt",
+        "updatedAt",
+        "archivedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "title": "BlueprintsListResponse",
+  "description": "GET /api/blueprints 响应（docs/permission-design.md §6.4）：只返回授权范围内可见的蓝图；服务端过滤与分页，前端不再补拉详情",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "items": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/BlueprintSummary"
+          },
+          "description": "当前页蓝图卡片"
+        },
+        "groups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "description": "分组 id"
+              },
+              "name": {
+                "type": "string",
+                "description": "分组名"
+              },
+              "isDefault": {
+                "type": "boolean",
+                "description": "是否默认分组"
+              },
+              "sortOrder": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "排序序号"
+              },
+              "blueprintCount": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "该分组下可见蓝图数量"
+              }
+            },
+            "required": [
+              "id",
+              "name",
+              "isDefault",
+              "sortOrder",
+              "blueprintCount"
+            ],
+            "additionalProperties": false
+          },
+          "description": "全部分组（含空分组，供拖拽落位；默认分组恒首位）"
+        }
+      },
+      "required": [
+        "items",
+        "groups"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "page": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "当前页码，从 1 开始"
+        },
+        "pageSize": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "description": "每页条数，默认 20，上限 100"
+        },
+        "total": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "过滤后的总条数"
+        },
+        "requestId": {
+          "type": "string",
+          "description": "请求 id，用于日志追溯"
+        }
+      },
+      "required": [
+        "page",
+        "pageSize",
+        "total",
+        "requestId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "data",
+    "meta"
+  ],
+  "additionalProperties": false
+}

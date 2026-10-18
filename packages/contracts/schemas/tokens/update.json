@@ -1,0 +1,20 @@
+{
+  "$id": "tokens/update",
+  "title": "UpdateMcpTokenRequest",
+  "description": "PATCH /api/tokens/:id 请求体：只允许改名与启停，不允许改绑定用户与 scope（要改只能重新创建）",
+  "type": "object",
+  "properties": {
+    "name": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "description": "新名称"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["active", "disabled"],
+      "description": "启停：disabled 后该 Token 立即不可用，可再置回 active"
+    }
+  },
+  "additionalProperties": false
+}

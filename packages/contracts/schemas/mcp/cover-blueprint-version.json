@@ -1,0 +1,40 @@
+{
+  "$id": "mcp/cover-blueprint-version",
+  "title": "McpCoverBlueprintVersionInput",
+  "description": "MCP 工具 youzhao_cover_blueprint_version 的入参：用新产物覆盖一个已存在版本的产物，版本号与元数据不变",
+  "type": "object",
+  "properties": {
+    "blueprintId": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "description": "蓝图 id，如 bp_xxx"
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "description": "要被覆盖的版本号"
+    },
+    "html": {
+      "type": "string",
+      "description": "产物入口 HTML 文本"
+    },
+    "markdown": {
+      "type": "string",
+      "description": "产物配套 Markdown"
+    },
+    "publishNote": {
+      "type": "string",
+      "maxLength": 500,
+      "description": "覆盖说明"
+    },
+    "idempotencyKey": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "description": "相同 key 的重复调用返回同一结果"
+    }
+  },
+  "required": ["blueprintId", "version", "html"],
+  "additionalProperties": false
+}

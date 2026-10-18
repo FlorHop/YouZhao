@@ -1,0 +1,81 @@
+{
+  "$id": "blueprint-groups/mutation",
+  "title": "BlueprintGroupMutationResponse",
+  "description": "分组写操作的响应（新建 / 归档 / 恢复 / 排序）：返回受影响分组的当前状态 + 回落信息，前端据此就地更新",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "group": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string",
+              "description": "分组 id"
+            },
+            "name": {
+              "type": "string",
+              "description": "分组名"
+            },
+            "isDefault": {
+              "type": "boolean",
+              "description": "是否默认分组"
+            },
+            "sortOrder": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "排序序号"
+            },
+            "archivedAt": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "format": "date-time",
+              "description": "归档时间；null = 未归档"
+            }
+          },
+          "required": [
+            "id",
+            "name",
+            "isDefault",
+            "sortOrder",
+            "archivedAt"
+          ],
+          "additionalProperties": false
+        },
+        "movedBlueprintIds": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "归档分组时回落到默认分组的蓝图 id（其他操作恒为空数组）"
+        }
+      },
+      "required": [
+        "group",
+        "movedBlueprintIds"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string",
+          "description": "请求 id"
+        }
+      },
+      "required": [
+        "requestId"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "data",
+    "meta"
+  ],
+  "additionalProperties": false
+}

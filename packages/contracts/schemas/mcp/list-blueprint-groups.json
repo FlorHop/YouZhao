@@ -1,0 +1,8 @@
+{
+  "$id": "mcp/list-blueprint-groups",
+  "title": "McpListBlueprintGroupsInput",
+  "description": "MCP 工具 youzhao_list_blueprint_groups 的入参：列出 Token 授权范围内的蓝图分组；该工具不需要任何参数",
+  "type": "object",
+  "properties": {},
+  "additionalProperties": false
+}

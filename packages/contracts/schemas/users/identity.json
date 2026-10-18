@@ -1,0 +1,20 @@
+{
+  "$id": "users/identity",
+  "title": "SetUserIdentityRequest",
+  "description": "PUT /api/users/:id/identity 请求体（仅所有者，docs/permission-design.md §6.2）：任命 / 撤销用户管理员；owner 不能经此接口设定",
+  "type": "object",
+  "properties": {
+    "identity": {
+      "type": "string",
+      "enum": [
+        "member",
+        "user_admin"
+      ],
+      "description": "目标身份；owner 只能由初始化或运维变更产生"
+    }
+  },
+  "required": [
+    "identity"
+  ],
+  "additionalProperties": false
+}
