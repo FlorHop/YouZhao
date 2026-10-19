@@ -928,7 +928,7 @@ can('user.create')                          // 装配页头主操作
 | M5 部署与数据迁移 | docker compose、install/upgrade/backup/restore、**预览独立域名**、`app_state` JSON → 关系表迁移脚本、产物迁移 | 单机一键部署通过；旧数据迁移后权限结果与迁移前**显式对照**（含已知缺陷的修正说明）；**直接切换到新接口，不保留并行旧接口**（Q7） |
 | M6 验收 | 安全回归（§7 全表复测）、性能（列表 1000 条分页）、无障碍与键盘操作 | 全部通过并留档 |
 
-**当前进度**：M0–M6 已完成（M6 除「真实容器化验收」，验收证据见 §8.4）。切流后本机复跑 **`pnpm verify` 全绿**（契约 49 schema + 9 测试、server **227 tests / 227 pass**、web 17 tests、lint/typecheck 干净），`smoke:e2e` **16/16**、`smoke:ui` **15/15**（浏览器级功能 + 视觉审计 + 键盘与无障碍）；M6 三项验收（§7 安全回归 12 用例、1000 条分页性能 2 用例、无障碍与键盘操作）全部通过并留档于 §8.4。M5 的**数据迁移已落地并实跑**（`pnpm -C server migrate:legacy`，14 个回归用例 + 合成旧快照与**旧应用真跑出的真快照**各一次完整 CLI 实跑，含产物搬运与前后可见范围对照），**部署产物已落地**（`deploy/`：compose / 网关 / 安装升级备份恢复脚本，见 §8.2）。**M6 切流已完成**（见 §8.3）：旧应用已从 `rebuild-v2` 分支删除、根 `package.json` 与 `README.md` 已改写为 v2、根 `node_modules` 已删除（子包各自独立安装，已复验契约/server/web 三门禁在本机仍全绿）。**真实容器化验收仍需 docker 守护**（本机 `colima` 未运行）。
+**当前进度**：M0–M6 已完成（M6 除「真实容器化验收」，验收证据见 §8.4）。切流后本机复跑 **`pnpm verify` 全绿**（契约 49 schema + 9 测试、server **227 tests / 227 pass**、web 17 tests、lint/typecheck 干净），`smoke:e2e` **16/16**、`smoke:ui` **15/15**（浏览器级功能 + 视觉审计 + 键盘与无障碍）；M6 三项验收（§7 安全回归 12 用例、1000 条分页性能 2 用例、无障碍与键盘操作）全部通过并留档于 §8.4。M5 的**数据迁移已落地并实跑**（`pnpm -C server migrate:legacy`，14 个回归用例 + 合成旧快照与**旧应用真跑出的真快照**各一次完整 CLI 实跑，含产物搬运与前后可见范围对照），**部署产物已落地**（`deploy/`：compose / 网关 / 安装升级备份恢复脚本，见 §8.2）。**M6 切流已完成**（见 §8.3）：旧应用已从 `rebuild-v2` 分支删除、根 `package.json` 与 `README.md` 已改写为 v2、根 `node_modules` 已删除（子包各自独立安装，已复验契约/server/web 三门禁在本机仍全绿）。**真实容器化验收仍需 docker 守护**（本机 `colima` 未运行）。**阿里云生产部署与真实旧数据迁移已完成并行验证（2026-10-19，见 §8.5）**：ECS 原生安装（PostgreSQL 16 + Node 24 + systemd `youzhao-api.service`），旧站真实快照迁移后 `users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4`，真机 `smoke:e2e` **16/16**、`smoke:ui` **15/15**；真库冒烟发现并修复了 2 个「只在本机 PGlite 测不出」的 int8 缺陷（§8.5），生产版配置 `/etc/youzhao/api.env.prod` 已通过 `loadConfig` 校验，**切 80/443 待用户加 `preview.youzhao.florai.cn` A 记录**。
 
 **数据迁移要点**（旧 `app_state` JSON → 关系表，实现见 §8.1）：
 
@@ -1005,6 +1005,48 @@ can('user.create')                          // 装配页头主操作
 
 ---
 
+## 8.5 阿里云生产部署与旧数据迁移验收记录（2026-10-19）
+
+首次把 v2 部署到真实生产机（阿里云 ECS，与旧站**并行**运行，旧站未动），并迁移真实旧数据。
+
+**目标机与形态**
+
+| 项目 | 实际值 |
+| --- | --- |
+| 主机 | 阿里云 ECS `100.116.86.115`（公网 EIP `8.136.181.191`，Ubuntu 24.04、2 vCPU、1.6 GiB 内存） |
+| 运行时 | **原生安装**（非容器）：PostgreSQL 16.15 + Node v24.22.0 + pnpm 12.14.0；2 GiB swap + `vm.swappiness=20`；journald 上限 `SystemMaxUse=200M` |
+| 代码 | `git clone --branch rebuild-v2 --depth 1` → `/srv/youzhao/app`（系统用户 `youzhao`） |
+| 配置 | `/etc/youzhao/api.env`（`root:youzhao` 640）；生产版 `/etc/youzhao/api.env.prod` 已生成并通过 `loadConfig` 校验（`appEnv=production`、`publicBaseUrl=https://youzhao.florai.cn`、`previewDomain=https://preview.youzhao.florai.cn`、`originAllowlist=[https://youzhao.florai.cn]`、`embedSecret` 64 字符） |
+| 进程 | `youzhao-api.service`（`User=youzhao`、`Environment=NODE_OPTIONS=--max-old-space-size=384`、`ProtectSystem=strict`、`ReadWritePaths=/srv/youzhao/data`、`Restart=always`） |
+| 数据 | `/srv/youzhao/data/previews` + PostgreSQL 库 `youzhao`（迁移 0001–0005） |
+
+**旧数据迁移（真实旧站快照，非合成）**
+
+旧站实际跑在 **VM103 `192.168.1.13`**（ECS 的 `youzhao.florai.cn` vhost 只是 frp 隧道回内网），数据在 `/data/youzhao`（`youzhao.sqlite` 430 080 字节、`pragma integrity_check=ok`、`previews/` 4.1 M）。搬运 `tar` → `scp` → `tar -xzf … -C data`（**归档根是 `youzhao/`**，就地解压会散落）。迁移结果：`users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4 capabilities=0`，产物 15 个蓝图目录 / 4.1 M。可见范围对照唯一变化：`demo`（member）4 → 8 蓝图**变宽**（旧模型要求函数级 `demo-preview:view` **且** 资源级授权，新模型只看资源级）。未迁移：`functionPermission(admin) demo-preview:manage`（owner 隐式全能力）、119 条旧 `auditLogs`（缺可用时间与 `request_id`）、`publishResultsByKey`。迁移用户口令由旧明文口径改为 scrypt，`must_change_password=true`。
+
+**真库冒烟发现的两个「只在本机 PGlite 测不出」的缺陷（已修）**
+
+| # | 现象 | 根因 | 修复 |
+| --- | --- | --- | --- |
+| 1 | `GET /api/blueprints` → 500，日志 `TypeError: The value of '#/$defs/BlueprintSummary/properties/latestVersion' does not match schema definition.`（fast-json-stringify） | `artifact_bytes` 是 **`bigint`(int8)**，node-postgres 把 int8 返回成**字符串**，而契约是 `integer\|null`；PGlite 返回数字 ⇒ 本机测不出 | `server/db/pool.ts` 新增 `installPgTypeParsers()`（`pg.types.setTypeParser(20, Number)`），两个连接工厂都调用；新增 `server/test/pg-types.test.ts` |
+| 2 | MCP `youzhao.publish_blueprint` 出参校验失败：`data/blueprint/latestVersion/artifactBytes must be integer,null` | 同一根因（SDK 对 `structuredContent` 按 `outputSchema` 严格校验，比 HTTP 侧更早暴露） | 同上，一处修复两侧受益 |
+
+**验收结果（真机、真库、真迁移数据）**
+
+| 验收项 | 命令 | 结果 |
+| --- | --- | --- |
+| HTTP 契约端到端 | `smoke-e2e.mjs --base http://127.0.0.1:9443 --preview http://127.0.0.1:8444 --origin http://127.0.0.1:9443` | **16/16** |
+| 浏览器级功能 + 视觉 + 无障碍 | `smoke-ui.mjs --app http://127.0.0.1:9443`（走 SSH 隧道） | **15/15**（11 张蓝图卡片、4 行用户、四段权限页、成员导航裁剪、`/403` 守卫、零控制台报错） |
+| 迁移忠实度 | 迁移前后可见范围对照 + 真快照实跑 | 27 条授权、29 个版本、产物可预览；唯一变化为上述 `demo` 变宽（已确认可接受） |
+
+**并行验证的临时入口（切流前产物，切流时应删除）**：`/etc/nginx/conf.d/youzhao-v2-test.conf`（9443：静态 `web/dist` + `/api` 反代 + `= /mcp` 关闭缓冲）、`youzhao-v2-preview-test.conf`（8444：只放 `/preview/`）；线上 80/443 vhost 未改。静态资源需 nginx worker（`www-data`）可遍历：`chmod o+x /srv /srv/youzhao /srv/youzhao/app /srv/youzhao/app/web` + `chmod -R a+rX …/web/dist`。
+
+**教学点：PGlite 与真 pg 的类型强制不等价**。PGlite（本机测试/开发驱动）把 `bigint` 返回为 JS number，node-postgres 默认返回字符串；凡把数值列序列化进 JSON Schema（`integer`）或 `outputSchema` 的地方，两端行为不同。**门禁（PGlite）全绿不代表真库通过**——真机冒烟是 M6 的必需环节。同类差异还有 `numeric`/`decimal`（默认返回字符串）与 `date` 精度，新增数值列时优先用 `integer`/`bigint` + 显式 `Number()`，或统一在 `pool.ts` 的类型解析器里收敛。
+
+**剩余步骤（切流）**：① 用户在阿里云加 `preview.youzhao.florai.cn` A 记录 → `8.136.181.191`；② `certbot` 为预览域签发证书；③ 把 `api.env.prod` 换成 `api.env` 并重启 api（`APP_ENV=production` 后 Cookie 变 `Secure`，必须全程 https）；④ 用生产 vhost 替换 `/etc/nginx/conf.d/youzhao.florai.cn.conf`（应用域 `/preview*` 一律 404，预览域只给 `/preview`）；⑤ 切后重跑两条冒烟 + 让旧机 `youzhao-api.service` 停用；⑥ 更新 `docs/deployment-rules.md` 以记录原生安装形态与 frp 拓扑。
+
+---
+
 ## 9. 对现有文档的修订清单
 
 ### 9.1 `docs/deployment-rules.md`
@@ -1017,6 +1059,7 @@ can('user.create')                          // 装配页头主操作
 | §11 访问规则 | `/preview/{blueprintId}/{version}/` 增补"必须携带有效票据或预览域 Cookie；否则 403"；产物结构补多文件与 `manifest.json.sha256` |
 | §13 安全约束 | "蓝图预览地址不应暴露未授权数据（后续）"升级为**硬要求**：产物默认鉴权；`PREVIEW_TICKET_SECRET` 无默认值 |
 | §15 验收标准 | "蓝图预览产物可通过 `/preview/{id}/{v}/` 打开"改为"持票据可打开，未持票据返回 403" |
+| §4/§14 部署形态与拓扑 | 记录实机事实（§8.5）：生产机采用**原生安装**（PostgreSQL 16 + Node 24 + systemd），`deploy/` 容器方案保留为可选；ECS 上 `youzhao.florai.cn` 是 frp 隧道回内网 VM103 `192.168.1.13` 的 `youzhao-api.service`（端口 4174，`YOUZHAO_DATA_DIR=/data/youzhao`），**迁移源数据即该机**；预览域必须是独立子域（`preview.youzhao.florai.cn`），无泛解析 |
 
 ### 9.2 `docs/frontend-rules.md`
 
