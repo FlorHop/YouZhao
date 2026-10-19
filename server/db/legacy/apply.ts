@@ -109,14 +109,12 @@ export async function applyLegacyMigration(
           `确认目标库是空的，或显式加 --replace 清空业务表后重试（不会动 schema_migrations）。`,
       );
     }
-    // 迁移期间禁掉外键校验再逐表清空，避免清表顺序成为新的失败点。
-    await runRaw(db, 'set session_replication_role = replica');
-    try {
-      for (const table of WIPE_ORDER) {
-        await runRaw(db, `delete from ${table}`);
-      }
-    } finally {
-      await runRaw(db, 'set session_replication_role = default');
+    // 按 WIPE_ORDER（先子表后父表）逐表清空即可，外键顺序由该常量保证。
+    // 刻意不用 `set session_replication_role = replica`：它要求超级用户，
+    // 而生产上 api 连的是普通库 owner 角色（ECS 实测报
+    // `permission denied to set parameter "session_replication_role"`）。
+    for (const table of WIPE_ORDER) {
+      await runRaw(db, `delete from ${table}`);
     }
     wiped = true;
     warnings.push(`--replace：已清空目标库 ${WIPE_ORDER.length} 张业务表（schema_migrations 未动）`);
