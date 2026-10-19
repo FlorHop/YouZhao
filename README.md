@@ -14,7 +14,7 @@
 | `server/` | Fastify + PostgreSQL 16 + Kysely 的 API；含身份权限域、蓝图与产物存储、预览票据、MCP 服务、旧数据迁移 CLI |
 | `web/` | Vue 3 + PrimeVue 前端（工作台 + 预览运行时的宿主页），OpenAI 设计体系 token 绑定 |
 | `deploy/` | 容器化编排：compose（postgres / api / web / gateway）、网关 nginx、安装/升级/备份/恢复脚本 |
-| `scripts/` | 无三方依赖的验收脚本：`smoke:e2e`（HTTP 契约 16 步）、`smoke:ui`（浏览器 14 步） |
+| `scripts/` | 无三方依赖的验收脚本：`smoke:e2e`（HTTP 契约 16 步）、`smoke:ui`（浏览器 15 步，含视觉与键盘无障碍审计） |
 | `skills/youzhao-mcp/` | MCP 接入说明（SKILL.md、逐工具参考、stdio 桥与冒烟脚本） |
 | `docs/` | 产品 PRD、架构设计（含 M0–M6 落地注记）、权限设计、前端设计、交互审核 |
 
@@ -104,22 +104,32 @@ cp .env.example .env      # 首次请把 please-change-this-* 换成随机值
 
 ## MCP 接入
 
+**远端 HTTP（推荐）**——不用克隆仓库，也不用在本机装 Node：
+
+```bash
+# Codex CLI 0.162+
+export YOUZHAO_MCP_TOKEN="yz_mcp_..."
+codex mcp add youzhao --url https://youzhao.florai.cn/mcp --bearer-token-env-var YOUZHAO_MCP_TOKEN
+```
+
+**只支持 stdio 的客户端**（Claude Desktop、Cursor 等）用生态桥 `mcp-remote`：
+
 ```json
 {
   "mcpServers": {
     "youzhao": {
-      "command": "node",
-      "args": ["/绝对路径/server/mcp-server.mjs"],
-      "env": {
-        "YOUZHAO_API_BASE": "https://youzhao.example.com",
-        "YOUZHAO_MCP_TOKEN": "yz_mcp_..."
-      }
+      "command": "npx",
+      "args": ["-y", "mcp-remote", "https://youzhao.florai.cn/mcp",
+               "--header", "Authorization: Bearer <粘贴 Token 明文>"]
     }
   }
 }
 ```
 
-Token 在「MCP Token」页创建（明文只显示一次）。实际能力 = **绑定用户的平台权限 ∩ Token scope**；`read:blueprint` 只能读，`publish:blueprint` 才能发布。工具清单与逐工具入参见 [`skills/youzhao-mcp/`](skills/youzhao-mcp/)。
+- 接入地址由服务端给出：`GET /api/mcp/connection-info` 返回 `httpUrl`、认证方式与协议信息，前端不再硬编码主机名。
+- 连不上先自检：`POST /api/mcp-tokens/verify` 收明文 Token，环回本服务的 `/mcp` 跑一次 `initialize` + `tools/list`（不调用业务工具、不写业务审计），返回 `{ ok, protocolVersion, toolCount, tools, latencyMs }`。
+
+Token 在「MCP Token」页创建（明文只显示一次）。实际能力 = **绑定用户的平台权限 ∩ Token scope**；`read:blueprint` 只能读，`publish:blueprint` 才能发布。应用内「连接 Agent」面板会按客户端生成上面的配置（样式原型：[`docs/design/mcp-connect-panel.html`](docs/design/mcp-connect-panel.html)）。工具清单与逐工具入参见 [`skills/youzhao-mcp/`](skills/youzhao-mcp/)——共 **8 个工具 = 4 读 + 4 写**。
 
 ---
 
@@ -130,6 +140,8 @@ Token 在「MCP Token」页创建（明文只显示一次）。实际能力 = **
 | [`docs/demo-platform-prd.md`](docs/demo-platform-prd.md) | 产品需求（用户/权限/蓝图/MCP 的原始口径） |
 | [`docs/architecture-design.md`](docs/architecture-design.md) | 前后端与 MCP 架构、数据模型、M0–M6 落地注记、部署与迁移要点 |
 | [`docs/permission-design.md`](docs/permission-design.md) | 权限模型、矩阵、不变量、端点与错误码契约 |
+| [`docs/mcp-onboarding-design.md`](docs/mcp-onboarding-design.md) | MCP 客户端接入优化：问题定位、接入契约（`connection-info` / `verify`）、分步落地与验收 |
 | [`docs/frontend-design.md`](docs/frontend-design.md) | 页面清单与逐页交互规格（P1–P8） |
 | [`docs/deployment-rules.md`](docs/deployment-rules.md) · [`docs/frontend-rules.md`](docs/frontend-rules.md) | 部署约束与前端规范（设计令牌、组件优先级、页面骨架） |
 | [`docs/prototype-interaction-review.md`](docs/prototype-interaction-review.md) | 早期高保真原型的交互审核记录 |
+| [`docs/design/mcp-connect-panel.html`](docs/design/mcp-connect-panel.html) | 「连接 Agent」面板样式原型（四状态可交互，截图在 `docs/design/shots/`） |

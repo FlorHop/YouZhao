@@ -4,7 +4,12 @@ Fastify + PostgreSQL（`pg` + Kysely）的 HTTP 服务，并与 MCP 共用 `app/
 设计依据：`docs/architecture-design.md`（§3.1 技术选型、§3.2 目录、§3.9 配置、§6.2 错误信封）。
 
 当前进度：**M0–M6 已完成**（契约与骨架 / 身份与权限底座 / 蓝图与产物 + 预览嵌入 / MCP 服务 / 前端重构在 `web/` / 旧数据迁移 / 根目录切流与验收），
-version: **2.0.0**。切流后本机复跑：`pnpm verify` 全绿（server 213 tests、web 17 tests、lint/typecheck 干净）、`pnpm smoke:e2e` 16/16、`pnpm smoke:ui` 14/14（浏览器级身份裁剪与设计体系约束）。**唯一未做的是真实容器化验收**——需要运行中的 docker 守护（本机 colima 未启动）。
+version: **2.0.0**。切流后本机复跑：`pnpm verify` 全绿（server 247 tests、web 17 tests、lint/typecheck 干净）、`pnpm smoke:e2e` 16/16、`pnpm smoke:ui` 15/15（浏览器级身份裁剪与设计体系约束）。**唯一未做的是真实容器化验收**——需要运行中的 docker 守护（本机 colima 未启动）。
+
+MCP 接入相关端点（为应用内「连接 Agent」面板提供支撑）：
+`GET /api/mcp/connection-info` 返回部署实际的 `httpUrl`、认证方式、协议与工具口径（前端不再硬编码主机名）；
+`POST /api/mcp-tokens/verify` 收**明文 Token**，环回本服务 `/mcp` 只跑 `initialize` + `tools/list` 做自检（不调用业务工具、不写业务审计，3s 超时）。
+设计与分步落地见 `docs/mcp-onboarding-design.md`；自检用例在 `test/token-verify.test.ts`。
 
 ## 命令
 
