@@ -5,7 +5,7 @@
 
 通用约定：
 
-- `idempotencyKey`（可选，1–128 字符）：**只有 3 个写工具**（`publish_blueprint`、`cover_blueprint_version`、`delete_blueprint_version`、`create_blueprint_group`）接受；同一 key + 同一请求体回放首次结果。
+- `idempotencyKey`（可选，1–128 字符）：**只有这 4 个写工具**（`publish_blueprint`、`cover_blueprint_version`、`delete_blueprint_version`、`create_blueprint_group`）接受；同一 key + 同一请求体回放首次结果。
 - 时间字段是 ISO 8601 字符串；`artifactBytes` / `latestVersion` / `archivedAt` 可为 `null`。
 - 出参同时出现在 `structuredContent`（本文件描述的结构）与 `content[0].text`（同一 JSON 的字符串）。
 - 失败时 `isError: true`，`content[0].text` 为 `{"error":{"code","message","details"}}`，`structuredContent` 同形。
@@ -70,7 +70,7 @@
 // 其他情况：票据化清单（不返回裸路径，不内联大文件）
 { "blueprintId": "bp_…", "version": "v1.1.0", "entry": "index.html",
   "files": [ { "path": "index.html", "bytes": 2048 }, { "path": "assets/app.js", "bytes": 900 } ],
-  "url": "http://127.0.0.1:4174/preview/p/bp_…/v1.1.0/index.html?ticket=…",
+  "url": "https://youzhao.florai.cn/preview/p/bp_…/v1.1.0/index.html?ticket=…",
   "expiresAt": "2026-06-12T10:30:00.000Z" }
 ```
 

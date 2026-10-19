@@ -13,7 +13,7 @@
  * - **不落盘 Token**：令牌只从环境变量读，不写入日志、不回显。
  *
  * 环境变量：
- * - `YOUZHAO_API_BASE`（必填）例如 `http://127.0.0.1:4174`
+ * - `YOUZHAO_API_BASE`（必填）例如 `https://youzhao.florai.cn`（本机开发用 `http://127.0.0.1:3000`）
  * - `YOUZHAO_MCP_TOKEN`（必填）MCP Token 明文，`yz_mcp_<tokenId>_<secret>`
  * - `YOUZHAO_MCP_PATH`（可选，默认 `/mcp`）
  * - `YOUZHAO_MCP_TIMEOUT_MS`（可选，默认 120000）

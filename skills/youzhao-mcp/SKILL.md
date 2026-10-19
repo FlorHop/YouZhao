@@ -5,7 +5,12 @@ description: Use when Codex needs to install, configure, or operate the YouZhao 
 
 # 有招 MCP
 
-有招（YouZhao）把「蓝图」产物交给 MCP 客户端读写：MCP 客户端 → **stdio 桥** `server/mcp-server.mjs` → 有招后端 `POST /mcp`（协议实现 `server/mcp/http.ts`、工具 `server/mcp/tools.ts`）。协议实现、鉴权、scope、审计、幂等**全在服务端**，桥只转发字节。
+有招（YouZhao）把「蓝图」产物交给 MCP 客户端读写，有两条接入路径：
+
+- **远端直连（推荐）**：MCP 客户端 → `https://<部署域名>/mcp`，用 `Authorization: Bearer <Token>` 鉴权，客户端本机不需要装 Node，也不需要本仓库。
+- **stdio 桥（离线/内网兜底）**：MCP 客户端 → `server/mcp-server.mjs` → 同一个 `POST /mcp`。
+
+协议实现 `server/mcp/http.ts`、工具 `server/mcp/tools.ts`；协议、鉴权、scope、审计、幂等**全在服务端**，桥只转发字节。
 
 ## Scope
 
@@ -30,10 +35,32 @@ description: Use when Codex needs to install, configure, or operate the YouZhao 
 - 绑定用户被停用 → `FORBIDDEN`（不是 401）；Token 本身无效/停用/过期 → `UNAUTHENTICATED`（401）。
 - `tools/list` 会按当前 Token 的 scope 裁剪：只读 Token 看不到写工具。
 
-## 客户端接入（stdio）
+## 客户端接入（远端直连优先）
 
 1. 在有招平台创建 MCP Token（普通用户只能给自己创建；平台所有者可为他人创建）。
-2. 把桥注册为 stdio MCP Server：
+2. 接入信息读 `GET /api/mcp/connection-info`（返回 `httpUrl`/`path`/`transport`/协议代/工具计数/scope），**不要自己拼地址**。
+3. 按客户端能力选一种：
+
+**A. 远端直连（推荐，本机不需要 Node、也不需要本仓库）**
+
+```bash
+# Codex CLI：Bearer 从环境变量读，不必手改 TOML
+export YOUZHAO_MCP_TOKEN=yz_mcp_xxx_yyy
+codex mcp add youzhao --url https://youzhao.florai.cn/mcp --bearer-token-env-var YOUZHAO_MCP_TOKEN
+```
+
+```bash
+# Claude Desktop 等只支持 stdio 的客户端：用社区桥 mcp-remote
+npx -y mcp-remote https://youzhao.florai.cn/mcp --header "Authorization: Bearer yz_mcp_xxx_yyy"
+```
+
+支持自定义 Header 的客户端（Cursor / VS Code 等）直接填：
+
+```json
+{ "url": "https://youzhao.florai.cn/mcp", "headers": { "Authorization": "Bearer yz_mcp_xxx_yyy" } }
+```
+
+**B. stdio 桥（离线/内网兜底，需要本机 Node 与仓库）**
 
 ```json
 {
@@ -42,7 +69,7 @@ description: Use when Codex needs to install, configure, or operate the YouZhao 
       "command": "node",
       "args": ["/absolute/path/to/youzhao/server/mcp-server.mjs"],
       "env": {
-        "YOUZHAO_API_BASE": "http://127.0.0.1:4174",
+        "YOUZHAO_API_BASE": "https://youzhao.florai.cn",
         "YOUZHAO_MCP_TOKEN": "yz_mcp_xxx_yyy"
       }
     }
@@ -50,13 +77,13 @@ description: Use when Codex needs to install, configure, or operate the YouZhao 
 }
 ```
 
-3. 重启客户端，用 `tools/list` 或 `scripts/youzhao_mcp_smoke_test.mjs` 验证。
+4. 重启客户端验证。也可以先在浏览器里用「连接自检」（`POST /api/mcp-tokens/verify`：收明文 Token、服务端环回跑一次 `initialize` + `tools/list`、3 秒超时、不调 `tools/call`），或跑 `scripts/youzhao_mcp_smoke_test.mjs`。
 
 桥的环境变量：
 
 | 变量 | 必填 | 默认 | 说明 |
 | --- | --- | --- | --- |
-| `YOUZHAO_API_BASE` | 是 | — | 有招 API 根地址，例如 `http://127.0.0.1:4174` |
+| `YOUZHAO_API_BASE` | 是 | — | 有招 API 根地址，例如 `https://youzhao.florai.cn`（本机开发用 `http://127.0.0.1:3000`） |
 | `YOUZHAO_MCP_TOKEN` | 是 | — | MCP Token 明文 |
 | `YOUZHAO_MCP_PATH` | 否 | `/mcp` | 服务端 MCP 端点路径 |
 | `YOUZHAO_MCP_TIMEOUT_MS` | 否 | `120000` | 单次转发超时 |

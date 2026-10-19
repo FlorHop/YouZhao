@@ -192,8 +192,8 @@ YOUZHAO_API_BASE=https://youzhao.florai.cn YOUZHAO_MCP_TOKEN=yz_mcp_… node ser
 |---|---|---|---|---|
 | 1 | 契约 `mcp/connection-info.json` + `GET /api/mcp/connection-info` + 测试 | 小 | 新增只读端点；`MCP_ENABLED=false` 时 503 | ✅ 已完成（6 用例；契约 50 schema） |
 | 2 | `POST /api/mcp-tokens/verify` + 测试（三态） | 小 | 回环 HTTP 探测；**注意不触发业务审计**；需要 3s 超时 | ✅ 已完成（11 用例；契约 52 schema） |
-| 3 | 前端 `McpConnectPanel`（替换 `McpClientSnippet.vue`）+ 内联造 Token + 自检 + 客户端分支 | 中 | 触及 Token 页与「我的账号」入口；需补 vitest | 待做（先出 HTML 原型 + 截图定样式） |
-| 4 | `skills/youzhao-mcp/SKILL.md`、`docs/architecture-design.md` §4.7、组件注释同步 | 小 | 纯文档 | 待做 |
+| 3 | 前端 `McpConnectPanel`（替换 `McpClientSnippet.vue`）+ 内联造 Token + 自检 + 客户端分支 | 中 | 触及 Token 页与「我的账号」入口；需补 vitest | 进行中（数据层 `web/src/services/endpoints.ts` 已就位；视觉改由 Open Design 出稿：run#1 `mcp-b3f0` 已完成、run#2 `mcp-connect-panel-openai-800b` 在跑） |
+| 4 | `skills/youzhao-mcp/SKILL.md`、`docs/architecture-design.md` §4.7、组件注释同步 | 小 | 纯文档 | ✅ 已完成（`SKILL.md` 接入段改「远端直连优先」；`mcp-tools.md` 写工具 3→4；`mcp-server.mjs` 默认地址改部署域名；架构文档新增 §4.7.1；文档中讲「问题现象/旧站事实」的 4174 原样保留） |
 | 5 | 验证：本机 `mcp-remote` 回归 + Codex CLI 实测 + 生产复跑冒烟 | 小 | Codex 实测需真实 Token | 待做 |
 
 **建议顺序**：1 → 2 → 4 → 3（先让地址与自检能力就位，再改界面），最后 5。

@@ -569,6 +569,22 @@ MCP_PATH=/mcp                 # 网关把 /mcp/* 转发到 api
 - `skills/youzhao-mcp/SKILL.md` 需要同步更新（端点、鉴权方式、工具清单、分帧修正）。
 - 本机 stdio 客户端配置：`YOUZHAO_API_BASE` + `YOUZHAO_MCP_TOKEN`（沿用现有环境变量名，语义不变）。
 
+#### 4.7.1 客户端接入引导（远端优先）
+
+真实用户的机器上通常没有仓库、也可能没有 Node，因此**默认引导直连远端**，stdio 薄桥降级为兜底：
+
+| 客户端类型 | 推荐接法 |
+|---|---|
+| Codex CLI | `export YOUZHAO_MCP_TOKEN=… && codex mcp add youzhao --url <API_PUBLIC_BASE_URL>/mcp --bearer-token-env-var YOUZHAO_MCP_TOKEN` |
+| Claude Desktop（stdio-only） | `npx -y mcp-remote <API_PUBLIC_BASE_URL>/mcp --header "Authorization: Bearer <Token 明文>"` |
+| 支持自定义 Header 的客户端 | JSON 里写 `{"url": "<…>/mcp", "headers": {"Authorization": "Bearer <Token 明文>"}}` |
+| 离线 / 内网（无公网入口） | 仓库自带薄桥 `server/mcp-server.mjs`（`YOUZHAO_API_BASE` + `YOUZHAO_MCP_TOKEN`，必要时 `YOUZHAO_MCP_PATH` / `YOUZHAO_MCP_TIMEOUT_MS`） |
+
+配套两个只服务于「接入引导」的端点（都要求会话，见 `docs/mcp-onboarding-design.md`）：
+
+- `GET /api/mcp/connection-info`：返回 `httpUrl`（由服务端用 `API_PUBLIC_BASE_URL` + `MCP_PATH` 拼出）、`path`、`transport`、认证方式、两个 era 的可用性、工具计数（8 = 4 读 + 4 写）与 scope 列表。`MCP_ENABLED=false` → 503 `MCP_DISABLED`。**前端不得自己拼接入地址。**
+- `POST /api/mcp-tokens/verify`：请求体收一次明文 Token（库中只有 `token_hash`，服务端无法反推），随后由服务端环回调用自己的 `/mcp` 跑 `initialize` + `tools/list`（不调 `tools/call`，因此不产生业务审计），3 秒超时；失败语义 401 `TOKEN_INVALID` / 403 `FORBIDDEN` / 503 `MCP_DISABLED`|`SERVICE_UNAVAILABLE`。
+
 ### 4.8 规范核实结果
 
 | 待核项 | 结论 |

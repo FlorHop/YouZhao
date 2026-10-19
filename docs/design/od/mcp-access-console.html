@@ -1,0 +1,1278 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>有招 · MCP 接入控制台</title>
+<style>
+:root{
+  --bg:#f5f5f5;
+  --surface:#ffffff;
+  --surface-2:#fafafa;
+  --fg:#0d0d0d;
+  --fg-2:#1a1a1a;
+  --muted:#6e6e6e;
+  --border:#e5e5e5;
+  --border-strong:#d4d4d4;
+  --accent:#10a37f;
+  --accent-hover:#0e9575;
+  --danger:#b42318;
+  --warn:#9a6700;
+  --radius:14px;
+  --radius-sm:10px;
+  --font-display:"Signifier","Iowan Old Style","Palatino Linotype","Songti SC",Georgia,serif;
+  --font-body:"Söhne",system-ui,-apple-system,"Segoe UI","PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+  --font-mono:"Söhne Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{margin:0}
+body{
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--font-body);
+  -webkit-font-smoothing:antialiased;
+  text-rendering:optimizeLegibility;
+}
+body.modal-open{overflow:hidden}
+button{font-family:inherit}
+code,pre{font-family:var(--font-mono)}
+:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.svg-defs{position:absolute;width:0;height:0;overflow:hidden}
+.ic{width:16px;height:16px;flex:none;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+
+.app{display:grid;grid-template-columns:232px minmax(0,1fr);min-height:100vh}
+.sidebar{position:sticky;top:0;height:100vh;display:flex;flex-direction:column;padding:20px 16px 16px;background:var(--surface-2);border-right:1px solid var(--border)}
+.brand{display:flex;align-items:center;gap:10px;padding:4px 8px 22px}
+.brand-mark{width:30px;height:30px;border-radius:9px;background:var(--fg);color:#fff;display:grid;place-items:center;font-family:var(--font-display);font-size:17px;line-height:1}
+.brand-name{font-size:15px;font-weight:650;letter-spacing:.02em;line-height:1.2}
+.brand-sub{font-size:10.5px;color:var(--muted);margin-top:3px;letter-spacing:.02em}
+.nav{display:flex;flex-direction:column;gap:2px}
+.nav-label{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:#8a8a8a;padding:14px 10px 6px}
+.nav-item{display:flex;align-items:center;justify-content:flex-start;width:100%;height:34px;padding:0 10px;border:1px solid transparent;border-radius:8px;background:transparent;color:#3a3a3a;font-size:13px;cursor:pointer;text-align:left;transition:background .14s,color .14s,border-color .14s}
+.nav-item:hover{background:#f0f0f0;color:var(--fg)}
+.nav-item.active{background:#fff;border-color:var(--border);color:var(--fg);font-weight:600}
+.nav-count{margin-left:auto;font-size:10.5px;color:var(--muted);background:#efefef;border-radius:999px;padding:1px 6px;font-weight:500}
+.nav-item.active .nav-count{background:var(--surface-2);border:1px solid var(--border)}
+.sidebar-foot{margin-top:auto;border-top:1px solid var(--border);padding-top:14px;display:flex;align-items:center;gap:9px}
+.avatar{width:30px;height:30px;border-radius:50%;background:var(--fg);color:#fff;display:grid;place-items:center;font-size:12px;flex:none}
+.user{min-width:0}
+.user-name{font-size:12.5px;font-weight:600;line-height:1.3}
+.user-mail{font-size:10.5px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px}
+
+.main{min-width:0;background:var(--surface);padding:0 48px 72px}
+.main-inner{max-width:1040px;margin:0 auto}
+.topbar{height:60px;display:flex;align-items:center;justify-content:space-between;gap:16px;border-bottom:1px solid var(--border);font-size:12px;color:var(--muted)}
+.crumbs{display:flex;align-items:center;gap:8px}
+.crumb-current{color:var(--fg);font-weight:500}
+.topbar-right{display:flex;align-items:center;gap:14px}
+.env{display:inline-flex;align-items:center;gap:6px;font-size:11px;border:1px solid var(--border);border-radius:999px;padding:3px 9px;color:#4a4a4a;background:#fff}
+.env-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none}
+.top-version{font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+.mobile-brand{display:none;align-items:center;gap:8px;font-size:13px;font-weight:650;color:var(--fg)}
+.mobile-brand .brand-mark{width:22px;height:22px;border-radius:7px;font-size:13px}
+
+.page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:34px 0 22px}
+.page-title-wrap{min-width:0}
+h1{font-family:var(--font-display);font-size:36px;font-weight:500;letter-spacing:-.015em;line-height:1.1;margin:0}
+.page-sub{font-size:13.5px;line-height:1.7;color:var(--muted);max-width:600px;margin:10px 0 0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:7px;height:38px;padding:0 14px;border-radius:9px;border:1px solid transparent;font-size:13px;font-weight:600;line-height:1;cursor:pointer;white-space:nowrap;transition:background .15s,border-color .15s,color .15s}
+.btn svg{width:15px;height:15px}
+.btn-sm{height:30px;padding:0 10px;font-size:12px;border-radius:8px}
+.btn-primary{background:var(--accent);border-color:var(--accent);color:var(--fg)}
+.btn-primary:hover{background:var(--accent-hover);border-color:var(--accent-hover)}
+.btn-primary:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.btn-primary:disabled{opacity:.55;cursor:not-allowed}
+.btn-secondary{background:#fff;border-color:var(--border-strong);color:var(--fg)}
+.btn-secondary:hover{background:var(--bg)}
+.btn-secondary:disabled{opacity:.55;cursor:not-allowed}
+.btn-ghost{background:transparent;color:var(--fg);border-color:transparent}
+.btn-ghost:hover{background:var(--bg)}
+.spinner{width:13px;height:13px;border-radius:50%;border:2px solid rgba(13,13,13,.22);border-top-color:var(--fg);animation:spin .7s linear infinite;flex:none}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.callout{display:flex;align-items:center;flex-wrap:wrap;gap:6px 14px;background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:11px 15px;font-size:12px;color:var(--muted)}
+.callout-strong{display:inline-flex;align-items:center;gap:7px;color:var(--fg);font-weight:600;font-size:12px}
+.callout code{font-size:11.5px;color:var(--fg);background:#fff;border:1px solid var(--border);border-radius:5px;padding:1px 5px}
+.callout-sep{width:1px;height:12px;background:var(--border-strong)}
+.link-btn{border:0;background:none;padding:0;font:inherit;font-size:12px;font-weight:600;color:var(--fg);text-decoration:underline;text-underline-offset:3px;text-decoration-color:#bdbdbd;cursor:pointer}
+.link-btn:hover{text-decoration-color:var(--fg)}
+.callout .link-btn{margin-left:auto}
+
+.panel-card{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;margin-top:26px}
+.panel-card-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.panel-card-title{display:flex;align-items:baseline;gap:8px;font-size:13.5px;font-weight:650}
+.panel-card-title .count{font-family:var(--font-mono);font-size:11px;color:var(--muted);font-weight:400}
+.panel-card-meta{font-size:11.5px;color:var(--muted)}
+.table-wrap{overflow-x:auto}
+table.tokens{width:100%;min-width:780px;border-collapse:collapse;font-size:12.5px}
+table.tokens th{text-align:left;font-size:10.5px;font-weight:500;letter-spacing:.05em;color:var(--muted);padding:9px 18px;background:var(--surface-2);border-bottom:1px solid var(--border);white-space:nowrap}
+table.tokens td{padding:13px 18px;border-bottom:1px solid var(--border);vertical-align:middle;color:#2a2a2a}
+table.tokens tbody tr:last-child td{border-bottom:0}
+table.tokens tbody tr:hover{background:var(--surface-2)}
+.cell-name{font-size:12.5px;font-weight:600;color:var(--fg)}
+.cell-sub{font-size:10.5px;color:var(--muted);margin-top:2px}
+.cell-muted{color:var(--muted);font-size:11.5px}
+.scope-tag{display:inline-block;font-family:var(--font-mono);font-size:10px;line-height:1.5;color:#4a4a4a;background:var(--surface-2);border:1px solid var(--border);border-radius:5px;padding:0 5px;margin:1px 2px 1px 0;white-space:nowrap}
+.status{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--fg-2);white-space:nowrap}
+.status-dot{width:5px;height:5px;border-radius:50%;background:var(--accent);flex:none}
+.status.off{color:var(--muted)}
+.status.off .status-dot{background:#bdbdbd}
+.row-action{border:0;background:none;padding:2px 0;font:inherit;font-size:12px;color:#4a4a4a;cursor:pointer;text-decoration:underline;text-underline-offset:3px;text-decoration-color:#d4d4d4;white-space:nowrap}
+.row-action:hover{color:var(--danger);text-decoration-color:var(--danger)}
+
+.design-notes{margin-top:44px;border-top:1px solid var(--border);padding-top:26px}
+.notes-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.notes-index{font-family:var(--font-mono);font-size:11px;color:var(--muted)}
+.notes-head h2{font-family:var(--font-display);font-size:23px;font-weight:500;letter-spacing:-.01em;margin:0}
+.notes-sub{font-size:11px;color:var(--muted);margin-left:auto;font-family:var(--font-mono)}
+.notes-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:26px;margin-top:18px}
+.notes-grid h3{font-size:12px;font-weight:650;margin:0 0 7px;color:var(--fg)}
+.notes-grid p{font-size:12px;line-height:1.75;color:var(--muted);margin:0}
+
+.overlay{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:28px;background:rgba(13,13,13,.32)}
+.overlay[hidden]{display:none}
+.modal{width:1040px;max-width:100%;max-height:92vh;background:var(--surface);border:1px solid var(--border);border-radius:16px;box-shadow:0 24px 64px rgba(13,13,13,.18);display:flex;flex-direction:column;overflow:hidden}
+.modal:focus{outline:none}
+.modal-head{padding:21px 30px 18px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex:none}
+.modal-eyebrow{font-family:var(--font-mono);font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted)}
+.modal-head h2{font-family:var(--font-display);font-size:26px;font-weight:500;letter-spacing:-.01em;line-height:1.15;margin:6px 0 5px}
+.modal-sub{font-size:12.5px;line-height:1.65;color:var(--muted);margin:0;max-width:660px}
+.close-btn{display:grid;place-items:center;width:32px;height:32px;flex:none;border:1px solid var(--border);border-radius:8px;background:#fff;color:var(--fg);cursor:pointer}
+.close-btn:hover{background:var(--bg)}
+.modal-body{position:relative;overflow-y:auto;padding:0 30px;flex:1;min-height:0}
+.sec{padding:24px 0;border-bottom:1px solid var(--border)}
+.sec:last-child{border-bottom:0}
+.sec-head{display:flex;align-items:baseline;gap:10px;margin-bottom:13px}
+.sec-num{font-family:var(--font-mono);font-size:11px;color:#9a9a9a;width:20px;flex:none}
+.sec-head h3{font-size:14px;font-weight:650;margin:0;letter-spacing:-.005em}
+.sec-meta{margin-left:auto;font-size:11px;color:var(--muted);font-family:var(--font-mono)}
+.sec-body{padding-left:30px}
+.foot-note{font-size:11.5px;line-height:1.7;color:var(--muted);margin:9px 0 0}
+
+.io-card{border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.io-row{display:grid;grid-template-columns:118px minmax(0,1fr) auto;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--border);min-height:44px}
+.io-row:last-child{border-bottom:0}
+.io-k{font-size:11.5px;color:var(--muted)}
+.io-v{font-family:var(--font-mono);font-size:12.5px;color:var(--fg);overflow-wrap:anywhere;min-width:0}
+.io-v .dim{color:var(--muted)}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;height:27px;padding:0 9px;border:1px solid var(--border);background:#fff;border-radius:7px;font-size:11px;font-weight:500;color:var(--fg);cursor:pointer;white-space:nowrap;transition:background .14s}
+.icon-btn:hover{background:var(--bg)}
+.icon-btn svg{width:12px;height:12px}
+
+.token-layout{display:grid;grid-template-columns:minmax(0,1.65fr) minmax(210px,.72fr);gap:26px;align-items:start}
+.label{display:block;font-size:11.5px;font-weight:600;color:var(--fg);margin-bottom:7px}
+.input{height:38px;width:100%;max-width:100%;border:1px solid var(--border-strong);border-radius:9px;background:#fff;padding:0 12px;font-family:inherit;font-size:12.5px;color:var(--fg);transition:border-color .14s}
+.input::placeholder{color:#9a9a9a}
+.input:hover{border-color:#bdbdbd}
+.input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(16,163,127,.14)}
+.hint{font-size:11px;line-height:1.6;color:var(--muted);margin:6px 0 0}
+.field{margin-bottom:15px}
+.field:last-child{margin-bottom:0}
+.field-error{font-size:11.5px;line-height:1.55;color:var(--danger);margin:6px 0 0}
+.scope-grid{display:grid;grid-template-columns:1fr 1fr;gap:9px}
+.scope{display:flex;align-items:flex-start;gap:9px;border:1px solid var(--border);border-radius:11px;background:#fff;padding:12px;cursor:pointer;transition:border-color .14s,background .14s}
+.scope:hover{background:var(--surface-2)}
+.scope:has(input:checked){border-color:var(--accent);background:var(--surface-2)}
+.scope input{appearance:none;-webkit-appearance:none;width:16px;height:16px;margin:2px 0 0;flex:none;border:1px solid #bdbdbd;border-radius:4px;background:#fff center/11px 11px no-repeat;cursor:pointer}
+.scope input:checked{border-color:var(--accent);background-color:var(--accent);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.2 6.3 4.7 8.8 9.8 3.6' fill='none' stroke='white' stroke-width='1.7' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")}
+.scope-copy{min-width:0}
+.scope-title{display:flex;align-items:baseline;gap:6px;font-size:12.5px;font-weight:600;line-height:1.35}
+.scope-title code{font-size:10.5px;color:var(--muted);font-weight:400}
+.scope-desc{display:block;font-size:11px;line-height:1.55;color:var(--muted);margin-top:4px}
+.scope input:focus-visible{outline:2px solid var(--fg);outline-offset:2px}
+.expiry{display:flex;flex-wrap:wrap;gap:7px}
+.exp{position:relative;display:inline-flex;align-items:center;gap:6px;height:34px;padding:0 11px;border:1px solid var(--border-strong);border-radius:8px;background:#fff;font-size:12px;color:#2a2a2a;cursor:pointer;transition:background .14s}
+.exp:hover{background:var(--surface-2)}
+.exp input{position:absolute;opacity:0;width:1px;height:1px;pointer-events:none}
+.exp:has(input:checked){border-color:var(--fg);box-shadow:inset 0 0 0 1px var(--fg);font-weight:600;color:var(--fg)}
+.exp-dot{width:6px;height:6px;border-radius:50%;border:1px solid #bdbdbd;background:#fff;flex:none}
+.exp:has(input:checked) .exp-dot{background:var(--accent);border-color:var(--accent)}
+.exp:has(input:focus-visible){outline:2px solid var(--fg);outline-offset:2px}
+.date-field{margin-top:9px}
+.date-input{width:210px;font-family:var(--font-mono);font-size:12px}
+.submit-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:17px}
+.submit-hint{font-size:11px;color:var(--muted);line-height:1.55}
+.aside-card{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px 15px}
+.aside-card h4{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 10px}
+.aside-list{list-style:none;margin:0;padding:0;display:grid;gap:9px}
+.aside-list li{font-size:11px;line-height:1.65;color:#4a4a4a;padding-top:9px;border-top:1px solid var(--border)}
+.aside-list li:first-child{padding-top:0;border-top:0}
+.aside-list code{font-size:10px;color:var(--fg);background:#fff;border:1px solid var(--border);border-radius:4px;padding:0 4px;white-space:nowrap}
+
+.reveal{border:1px solid var(--accent);border-radius:13px;overflow:hidden;background:#fff}
+.reveal-head{display:flex;align-items:center;gap:8px;padding:10px 14px;background:var(--surface-2);border-bottom:1px solid var(--border);font-size:12px;font-weight:600}
+.reveal-head .ic{color:var(--accent)}
+.reveal-warn{margin-left:auto;font-size:10.5px;font-weight:600;color:var(--warn);letter-spacing:.01em}
+.reveal-body{padding:14px}
+.token-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.token-val{flex:1 1 360px;min-width:0;background:var(--surface-2);border:1px solid var(--border);border-radius:8px;padding:9px 11px;font-size:13px;line-height:1.5;letter-spacing:.01em;overflow-wrap:anywhere;user-select:all;color:var(--fg)}
+.secret-note{font-size:11px;line-height:1.65;color:var(--warn);margin:9px 0 0}
+.token-meta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:11px;font-size:11px;color:var(--muted)}
+.token-meta b{font-weight:500;color:var(--fg);font-family:var(--font-mono);font-size:10.5px}
+.reveal-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:13px}
+.saved{display:flex;align-items:center;gap:11px;flex-wrap:wrap;border:1px solid var(--border);border-radius:12px;background:var(--surface-2);padding:12px 14px}
+.saved-icon{color:var(--accent);width:18px;height:18px}
+.saved-text{min-width:0;flex:1 1 280px}
+.saved-title{font-size:12.5px;font-weight:600}
+.saved-sub{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5}
+.saved-sub code{font-size:10.5px;color:var(--fg);background:#fff;border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.saved-action{flex:none}
+
+.seg{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:2px;background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:3px}
+.seg-btn{height:30px;padding:0 5px;border:1px solid transparent;border-radius:7px;background:transparent;color:#4a4a4a;font-size:11.5px;white-space:nowrap;cursor:pointer;transition:background .14s,color .14s,border-color .14s;overflow:hidden;text-overflow:ellipsis}
+.seg-btn:hover{background:#ececec;color:var(--fg)}
+.seg-btn.active{background:#fff;border-color:var(--border-strong);color:var(--fg);font-weight:600}
+.client-hint{font-size:11.5px;line-height:1.6;color:var(--muted);margin:11px 0 0}
+.code-box{border:1px solid var(--border);border-radius:11px;overflow:hidden;margin-top:9px;background:#fff}
+.code-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:6px 9px 6px 13px;background:var(--surface-2);border-bottom:1px solid var(--border)}
+.code-file{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);letter-spacing:.01em}
+.code-box pre{margin:0;padding:13px 15px;overflow-x:auto;font-size:11.5px;line-height:1.75;color:var(--fg-2);white-space:pre;tab-size:2}
+.code-box code{font-size:inherit}
+
+.check-grid{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+.pw-wrap{position:relative;flex:1 1 280px;min-width:0}
+.pw-wrap .input{padding-right:36px;font-family:var(--font-mono);font-size:12px}
+.eye-btn{position:absolute;top:50%;right:5px;transform:translateY(-50%);display:grid;place-items:center;width:27px;height:27px;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}
+.eye-btn:hover{background:var(--bg);color:var(--fg)}
+.eye-btn svg{width:14px;height:14px}
+.check-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.check-row .btn{height:38px;flex:none}
+.result{margin-top:11px;border:1px solid var(--border);border-radius:12px;padding:13px 15px;background:var(--surface-2);min-height:80px}
+.result-top{display:flex;align-items:center;gap:8px;font-size:12.5px;font-weight:600;line-height:1.4}
+.result-top .ic{width:17px;height:17px}
+.result-idle{font-size:12px;font-weight:600;color:var(--muted)}
+.result-meta{display:flex;align-items:center;flex-wrap:wrap;gap:3px 8px;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6}
+.result-meta code{font-size:10.5px;color:var(--fg);background:#fff;border:1px solid var(--border);border-radius:4px;padding:0 4px}
+.result-dot{width:2px;height:2px;border-radius:50%;background:#bdbdbd}
+.result-advice{font-size:11.5px;line-height:1.65;color:#4a4a4a;margin:6px 0 0}
+.result-action{margin-top:7px;font-size:11.5px}
+.result-ok{color:var(--accent)}
+.result-bad{color:var(--danger)}
+.err-card{border:1px solid var(--border);border-radius:12px;background:var(--surface-2);padding:13px 14px}
+.err-card h4{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:600;margin:0 0 3px}
+.err-intro{font-size:10.5px;color:var(--muted);margin:0 0 4px;line-height:1.55}
+.err-item{display:grid;grid-template-columns:52px minmax(0,1fr);gap:8px;padding:9px 0;border-top:1px solid var(--border)}
+.err-item:first-of-type{border-top:0}
+.err-code{font-family:var(--font-mono);font-size:10.5px;color:var(--muted);padding-top:1px}
+.err-label{font-size:11.5px;font-weight:600;line-height:1.4}
+.err-advice{font-size:10.5px;line-height:1.6;color:var(--muted);margin:3px 0 0}
+
+.tools-wrap{border:1px solid var(--border);border-radius:12px;overflow:hidden;background:#fff}
+table.tools{width:100%;border-collapse:collapse;table-layout:fixed}
+table.tools th{text-align:left;background:var(--surface-2);border-bottom:1px solid var(--border);padding:9px 14px;font-size:11px;font-weight:600;color:var(--fg)}
+table.tools th+th{border-left:1px solid var(--border)}
+.tools-scope{font-family:var(--font-mono);font-size:9.5px;font-weight:400;color:var(--muted);margin-left:5px}
+.tools-count{font-family:var(--font-mono);font-size:9.5px;color:var(--muted);font-weight:400;border:1px solid var(--border);border-radius:999px;padding:0 5px;margin-left:4px;background:#fff}
+table.tools td{width:50%;padding:9px 14px;border-bottom:1px solid var(--border);vertical-align:top}
+table.tools td+td{border-left:1px solid var(--border)}
+table.tools tr:last-child td{border-bottom:0}
+table.tools tbody tr:hover{background:var(--surface-2)}
+.tool-name{font-family:var(--font-mono);font-size:11px;color:var(--fg);line-height:1.45;overflow-wrap:anywhere}
+.tool-desc{font-size:10.5px;line-height:1.55;color:var(--muted);margin-top:2px}
+.modal-foot{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:10px 30px;border-top:1px solid var(--border);background:var(--surface-2);flex:none}
+.foot-status{display:inline-flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:10.5px;color:var(--muted)}
+
+.toast{position:fixed;left:50%;bottom:28px;transform:translate(-50%,8px);z-index:80;background:var(--fg);color:#fff;font-size:12px;line-height:1.4;padding:9px 14px;border-radius:9px;opacity:0;pointer-events:none;transition:opacity .18s,transform .18s;max-width:calc(100vw - 40px)}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+@media (max-width:1180px){
+  .main{padding:0 32px 64px}
+}
+@media (max-width:1024px){
+  .app{grid-template-columns:minmax(0,1fr)}
+  .sidebar{display:none}
+  .mobile-brand{display:flex}
+  .crumbs{display:none}
+}
+@media (max-width:860px){
+  .notes-grid{grid-template-columns:1fr;gap:16px}
+  .token-layout{grid-template-columns:1fr}
+  .aside-card{order:2}
+  .check-grid{grid-template-columns:1fr}
+  .top-version{display:none}
+}
+@media (max-width:760px){
+  .main{padding:0 20px 48px}
+  .page-head{flex-direction:column;gap:16px;padding:26px 0 18px}
+  h1{font-size:31px}
+  .overlay{padding:0}
+  .modal{width:100%;height:100vh;max-height:100vh;border-radius:0;border:0}
+  .modal-head{padding:16px 20px 14px}
+  .modal-head h2{font-size:23px}
+  .modal-body{padding:0 20px}
+  .modal-foot{padding:9px 20px}
+  .sec{padding:20px 0}
+  .sec-body{padding-left:0}
+  .sec-head{flex-wrap:wrap;gap:6px 10px}
+  .sec-meta{margin-left:30px;flex-basis:100%;display:none}
+  .io-row{grid-template-columns:minmax(0,1fr) auto;gap:3px 10px;padding:10px 12px}
+  .io-k{grid-column:1/-1;font-size:10.5px}
+  .scope-grid{grid-template-columns:1fr}
+  .seg{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .seg-btn{height:29px;font-size:11px}
+  .token-val{flex-basis:100%;font-size:12px}
+  .code-box pre{font-size:11px;padding:12px}
+  .date-input{width:100%}
+  .check-grid{gap:12px}
+  .check-row .btn{width:100%}
+  .pw-wrap{flex-basis:100%}
+  .token-meta{gap:4px 14px}
+  .saved-action{margin-left:0}
+  .tools-wrap{border:0;border-radius:0;overflow:visible}
+  table.tools thead{display:none}
+  table.tools tbody{display:block}
+  table.tools tr{display:block;border-bottom:1px solid var(--border)}
+  table.tools tr:last-child{border-bottom:0}
+  table.tools td{display:block;width:100%;border-bottom:0;border-left:0!important;padding:10px 13px}
+  table.tools tr td+td{border-top:1px solid var(--border)}
+  .notes-sub{display:none}
+}
+@media (max-width:420px){
+  .modal-head h2{font-size:21px}
+  .modal-sub{font-size:11.5px}
+  .expiry{gap:6px}
+  .exp{height:32px;padding:0 9px;font-size:11.5px}
+  .token-line .icon-btn{width:100%}
+}
+</style>
+</head>
+<body class="modal-open">
+<svg class="svg-defs" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <symbol id="icon-copy" viewBox="0 0 24 24"><rect x="9" y="9" width="11" height="11" rx="2.5"/><path d="M5.5 15V5.5A2 2 0 0 1 7.5 3.5H15"/></symbol>
+  <symbol id="icon-check" viewBox="0 0 24 24"><path d="m4.5 12.5 5 5 10-11"/></symbol>
+  <symbol id="icon-check-circle" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="m8 12.3 2.6 2.6 5.6-5.9"/></symbol>
+  <symbol id="icon-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="icon-plug" viewBox="0 0 24 24"><path d="M9 3v5M15 3v5"/><path d="M7 8h10v3a5 5 0 0 1-10 0V8Z"/><path d="M12 16v5"/></symbol>
+  <symbol id="icon-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2.5"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></symbol>
+  <symbol id="icon-eye" viewBox="0 0 24 24"><path d="M2.5 12S6 6 12 6s9.5 6 9.5 6-3.5 6-9.5 6-9.5-6-9.5-6Z"/><circle cx="12" cy="12" r="2.6"/></symbol>
+  <symbol id="icon-eye-off" viewBox="0 0 24 24"><path d="M3 3l18 18"/><path d="M10.6 6.2A9.9 9.9 0 0 1 12 6c6 0 9.5 6 9.5 6a15.6 15.6 0 0 1-2.5 3.2M6.3 6.6C3.9 8.2 2.5 12 2.5 12s3.5 6 9.5 6a9.8 9.8 0 0 0 4.1-.9"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  <symbol id="icon-alert" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V13"/><path d="M12 16.5h.01"/></symbol>
+  <symbol id="icon-arrow" viewBox="0 0 24 24"><path d="M7 17 17 7"/><path d="M9 7h8v8"/></symbol>
+</svg>
+
+<div class="app">
+  <aside class="sidebar">
+    <div class="brand">
+      <div class="brand-mark">有</div>
+      <div>
+        <div class="brand-name">有招</div>
+        <div class="brand-sub">Agent 控制台</div>
+      </div>
+    </div>
+    <nav class="nav" aria-label="主导航">
+      <div class="nav-label">空间</div>
+      <button type="button" class="nav-item">工作台</button>
+      <button type="button" class="nav-item">蓝图</button>
+      <button type="button" class="nav-item active" aria-current="page">Token<span class="nav-count">3</span></button>
+      <button type="button" class="nav-item">运行日志</button>
+      <div class="nav-label">管理</div>
+      <button type="button" class="nav-item">团队成员</button>
+      <button type="button" class="nav-item">空间设置</button>
+    </nav>
+    <div class="sidebar-foot">
+      <div class="avatar">林</div>
+      <div class="user">
+        <div class="user-name">林舟</div>
+        <div class="user-mail">owner@florai.cn</div>
+      </div>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="main-inner">
+      <div class="topbar">
+        <div class="crumbs"><span>设置</span><span>/</span><span class="crumb-current">Token</span></div>
+        <div class="mobile-brand"><span class="brand-mark">有</span><span>有招 · Token</span></div>
+        <div class="topbar-right">
+          <span class="env"><span class="env-dot"></span>生产环境</span>
+          <span class="top-version">MCP 2025-06-18</span>
+        </div>
+      </div>
+
+      <header class="page-head" data-od-id="token-page-header">
+        <div class="page-title-wrap">
+          <h1 data-od-id="token-page-title">Token</h1>
+          <p class="page-sub">为 AI 编码客户端创建 MCP Token，连接后有招的蓝图能力会出现在客户端的工具列表中。Token 绑定当前账号权限，可随时撤销。</p>
+        </div>
+        <button type="button" class="btn btn-primary open-panel" id="connect-agent" data-od-id="connect-agent-cta">
+          <svg class="ic"><use href="#icon-plug"/></svg>连接 Agent
+        </button>
+      </header>
+
+      <div class="callout" data-od-id="mcp-callout">
+        <span class="callout-strong"><span class="env-dot"></span>MCP 接入已启用</span>
+        <span class="callout-sep"></span>
+        <span>端点 <code>https://youzhao.florai.cn/mcp</code></span>
+        <span class="callout-sep"></span>
+        <span>Streamable HTTP · 8 个工具</span>
+        <button type="button" class="link-btn open-panel" data-od-id="open-panel-link">打开接入面板</button>
+      </div>
+
+      <section class="panel-card" data-od-id="token-table">
+        <div class="panel-card-head">
+          <div class="panel-card-title">Token 列表<span class="count">共 <span id="token-count">3</span> 个</span></div>
+          <div class="panel-card-meta">明文仅在创建时展示一次</div>
+        </div>
+        <div class="table-wrap">
+          <table class="tokens">
+            <thead>
+              <tr>
+                <th scope="col">名称</th>
+                <th scope="col">能力</th>
+                <th scope="col">有效期</th>
+                <th scope="col">最近使用</th>
+                <th scope="col">状态</th>
+                <th scope="col">操作</th>
+              </tr>
+            </thead>
+            <tbody id="token-body">
+              <tr>
+                <td><div class="cell-name">Cursor · 笔记本</div><div class="cell-sub">本机开发</div></td>
+                <td><span class="scope-tag">read:blueprint</span><span class="scope-tag">publish:blueprint</span></td>
+                <td><span class="cell-muted">90 天 · 2027-01-17</span></td>
+                <td><span class="cell-muted">12 分钟前</span></td>
+                <td><span class="status"><span class="status-dot"></span>有效</span></td>
+                <td><button type="button" class="row-action" data-row-action="revoke">撤销</button></td>
+              </tr>
+              <tr>
+                <td><div class="cell-name">CI 发布流水线</div><div class="cell-sub">自动化发布</div></td>
+                <td><span class="scope-tag">publish:blueprint</span></td>
+                <td><span class="cell-muted">永不过期</span></td>
+                <td><span class="cell-muted">3 天前</span></td>
+                <td><span class="status"><span class="status-dot"></span>有效</span></td>
+                <td><button type="button" class="row-action" data-row-action="revoke">撤销</button></td>
+              </tr>
+              <tr>
+                <td><div class="cell-name">只读巡检</div><div class="cell-sub">质量巡检脚本</div></td>
+                <td><span class="scope-tag">read:blueprint</span></td>
+                <td><span class="cell-muted">已于 2026-09-30 过期</span></td>
+                <td><span class="cell-muted">24 天前</span></td>
+                <td><span class="status off"><span class="status-dot"></span>已过期</span></td>
+                <td><button type="button" class="row-action" data-row-action="delete">删除</button></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="design-notes" data-od-id="design-notes">
+        <div class="notes-head">
+          <span class="notes-index">附</span>
+          <h2>设计说明</h2>
+          <span class="notes-sub">MCP 接入 · 2026-10</span>
+        </div>
+        <div class="notes-grid">
+          <article>
+            <h3>按接入顺序排布</h3>
+            <p>地址、Token、客户端、自检、工具清单依次推进，前一步的结果直接成为下一步的输入。弹层内部不再造左侧步骤条，避免在单一任务里叠加第二层导航。</p>
+          </article>
+          <article>
+            <h3>信息密度取舍</h3>
+            <p>地址与认证压成三行键值，解释文字留在 11–12px 的次级灰；工具清单用两列八行表格换取竖向空间。代码块独占整行，保证可以直接粘贴。</p>
+          </article>
+          <article>
+            <h3>状态与颜色</h3>
+            <p>一次性明文只出现一次，保存后只保留前缀；自检失败按 401 / 403 / 503 各给一个动作。青绿只用于主操作与成功图标，红与琥珀只出现在错误文字上。</p>
+          </article>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<div class="overlay" id="mcp-overlay" data-od-id="mcp-panel">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="panel-title" tabindex="-1">
+    <div class="modal-head">
+      <div>
+        <div class="modal-eyebrow">MCP · Streamable HTTP</div>
+        <h2 id="panel-title" data-od-id="mcp-panel-title">连接 Agent</h2>
+        <p class="modal-sub">创建 Token、复制客户端配置，并在保存前完成一次连接自检。所有配置只写入你自己的 AI 编码客户端。</p>
+      </div>
+      <button type="button" class="close-btn" id="close-panel" aria-label="关闭接入面板" data-od-id="panel-close">
+        <svg class="ic" style="width:15px;height:15px"><use href="#icon-x"/></svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <section class="sec" id="endpoint-section" data-od-id="endpoint-section">
+        <div class="sec-head">
+          <span class="sec-num">01</span>
+          <h3 data-od-id="endpoint-heading">接入地址</h3>
+          <span class="sec-meta">/mcp 是唯一入口</span>
+        </div>
+        <div class="sec-body">
+          <div class="io-card">
+            <div class="io-row">
+              <span class="io-k">MCP 端点</span>
+              <span class="io-v" id="endpoint-value">https://youzhao.florai.cn/mcp</span>
+              <button type="button" class="icon-btn" data-copy="endpoint" data-od-id="copy-endpoint">
+                <svg class="ic"><use href="#icon-copy"/></svg><span>复制</span>
+              </button>
+            </div>
+            <div class="io-row">
+              <span class="io-k">传输</span>
+              <span class="io-v">Streamable HTTP</span>
+              <span></span>
+            </div>
+            <div class="io-row">
+              <span class="io-k">认证</span>
+              <span class="io-v">Authorization: Bearer <span class="dim">&lt;Token&gt;</span></span>
+              <button type="button" class="icon-btn" data-copy="auth" data-od-id="copy-auth">
+                <svg class="ic"><use href="#icon-copy"/></svg><span>复制</span>
+              </button>
+            </div>
+          </div>
+          <p class="foot-note">/mcp/、/sse 及任何子路径都不会命中，请原样使用上方地址。客户端只支持远程 MCP 时，优先选 Streamable HTTP。</p>
+        </div>
+      </section>
+
+      <section class="sec" id="token-section" data-od-id="token-create-section">
+        <div class="sec-head">
+          <span class="sec-num">02</span>
+          <h3 data-od-id="token-create-heading">创建 Token</h3>
+          <span class="sec-meta">明文仅显示一次</span>
+        </div>
+        <div class="sec-body">
+          <div class="token-layout" id="token-layout">
+            <form id="token-form" novalidate>
+              <div class="field">
+                <label class="label" for="token-name">名称</label>
+                <input class="input" id="token-name" name="token-name" type="text" maxlength="40" value="Claude Code · 本机" autocomplete="off" aria-describedby="name-hint">
+                <p class="hint" id="name-hint">用于区分客户端，例如「Claude Code · 本机」「CI 发布机」。</p>
+                <p class="field-error" id="name-error" role="alert" hidden>请输入 Token 名称。</p>
+              </div>
+
+              <div class="field">
+                <span class="label" id="scope-label">能力（scope）</span>
+                <div class="scope-grid" role="group" aria-labelledby="scope-label" aria-describedby="scope-error">
+                  <label class="scope" data-od-id="scope-read-card">
+                    <input type="checkbox" value="read:blueprint" id="scope-read" checked>
+                    <span class="scope-copy">
+                      <span class="scope-title">只读 <code>read:blueprint</code></span>
+                      <span class="scope-desc">列出分组与蓝图，读取结构、节点与产物。</span>
+                    </span>
+                  </label>
+                  <label class="scope" data-od-id="scope-publish-card">
+                    <input type="checkbox" value="publish:blueprint" id="scope-publish" checked>
+                    <span class="scope-copy">
+                      <span class="scope-title">发布 <code>publish:blueprint</code></span>
+                      <span class="scope-desc">发布、覆盖、删除版本与新建分组，不含读取。</span>
+                    </span>
+                  </label>
+                </div>
+                <p class="field-error" id="scope-error" role="alert" hidden>至少选择一项能力。</p>
+                <p class="hint">publish 不隐含 read，通常两项一起勾选；Token 能力取账号权限与 scope 的交集。</p>
+              </div>
+
+              <div class="field">
+                <span class="label" id="expiry-label">有效期</span>
+                <div class="expiry" role="radiogroup" aria-labelledby="expiry-label">
+                  <label class="exp"><input type="radio" name="expiry" id="expiry-never" value="never"><span class="exp-dot"></span>永不过期</label>
+                  <label class="exp"><input type="radio" name="expiry" id="expiry-30" value="30d"><span class="exp-dot"></span>30 天</label>
+                  <label class="exp"><input type="radio" name="expiry" id="expiry-90" value="90d" checked><span class="exp-dot"></span>90 天</label>
+                  <label class="exp"><input type="radio" name="expiry" id="expiry-custom" value="custom"><span class="exp-dot"></span>自定义日期</label>
+                </div>
+                <div class="date-field" id="date-field" hidden>
+                  <input class="input date-input" id="custom-date" type="date" aria-label="自定义过期日期">
+                  <p class="field-error" id="date-error" role="alert" hidden>请选择过期日期。</p>
+                </div>
+              </div>
+
+              <div class="submit-row">
+                <button type="submit" class="btn btn-primary" id="create-btn" data-od-id="create-token-cta">创建 Token</button>
+                <span class="submit-hint">创建后可复制配置，并立即检测连接。</span>
+              </div>
+            </form>
+
+            <aside class="aside-card" aria-label="权限与安全说明">
+              <h4>权限与安全</h4>
+              <ul class="aside-list">
+                <li><code>read:blueprint</code> 读取分组、蓝图与产物。</li>
+                <li><code>publish:blueprint</code> 发布、覆盖与删除版本。</li>
+                <li>两项独立授权；发布不包含读取。撤销立即生效，绑定账号被移出空间后 Token 同步失效。</li>
+              </ul>
+            </aside>
+          </div>
+
+          <div id="reveal-wrap" hidden>
+            <div class="reveal" id="token-reveal" data-od-id="token-reveal">
+              <div class="reveal-head">
+                <svg class="ic"><use href="#icon-lock"/></svg>
+                <span>Token 已创建</span>
+                <span class="reveal-warn">仅显示一次</span>
+              </div>
+              <div class="reveal-body">
+                <div class="token-line">
+                  <code class="token-val" id="token-val">yz_mcp_...</code>
+                  <button type="button" class="icon-btn" data-copy="token" id="copy-token" data-od-id="copy-created-token">
+                    <svg class="ic"><use href="#icon-copy"/></svg><span>复制</span>
+                  </button>
+                </div>
+                <p class="secret-note">明文只展示这一次，请立即保存到密码管理器。若丢失，只能撤销后重新创建。</p>
+                <div class="token-meta">
+                  <span>名称 <b id="meta-name">—</b></span>
+                  <span>能力 <b id="meta-scopes">—</b></span>
+                  <span>有效期 <b id="meta-expiry">—</b></span>
+                </div>
+                <div class="reveal-actions">
+                  <button type="button" class="btn btn-primary btn-sm" id="saved-token" data-od-id="token-saved-cta">我已保存</button>
+                  <button type="button" class="btn btn-ghost btn-sm" id="test-created">用此 Token 检测</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div id="saved-wrap" hidden>
+            <div class="saved" data-od-id="token-saved-state">
+              <svg class="ic saved-icon"><use href="#icon-check-circle"/></svg>
+              <div class="saved-text">
+                <div class="saved-title">Token 已保存</div>
+                <div class="saved-sub">前缀 <code id="saved-prefix">yz_mcp_…</code> · 可在 Token 列表中撤销</div>
+              </div>
+              <button type="button" class="link-btn saved-action" id="recreate-token">再创建一个</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="client-section" data-od-id="client-section">
+        <div class="sec-head">
+          <span class="sec-num">03</span>
+          <h3 data-od-id="client-heading">选择客户端</h3>
+          <span class="sec-meta">6 种客户端</span>
+        </div>
+        <div class="sec-body">
+          <div class="seg" id="client-tabs" role="tablist" aria-label="选择 AI 编码客户端">
+            <button type="button" class="seg-btn active" role="tab" aria-selected="true" data-client="codex" data-od-id="client-tab-codex">Codex CLI</button>
+            <button type="button" class="seg-btn" role="tab" aria-selected="false" tabindex="-1" data-client="claude-desktop" data-od-id="client-tab-claude-desktop">Claude Desktop</button>
+            <button type="button" class="seg-btn" role="tab" aria-selected="false" tabindex="-1" data-client="claude-code" data-od-id="client-tab-claude-code">Claude Code</button>
+            <button type="button" class="seg-btn" role="tab" aria-selected="false" tabindex="-1" data-client="cursor" data-od-id="client-tab-cursor">Cursor</button>
+            <button type="button" class="seg-btn" role="tab" aria-selected="false" tabindex="-1" data-client="vscode" data-od-id="client-tab-vscode">VS Code</button>
+            <button type="button" class="seg-btn" role="tab" aria-selected="false" tabindex="-1" data-client="curl" data-od-id="client-tab-curl">通用 curl</button>
+          </div>
+          <p class="client-hint" id="client-hint">先导出环境变量，再把服务注册到 Codex。环境变量名可自定义。</p>
+          <div class="code-box" data-od-id="client-config">
+            <div class="code-head">
+              <span class="code-file" id="client-file">Terminal · zsh</span>
+              <button type="button" class="icon-btn" data-copy="client" id="copy-client" data-od-id="copy-client-config">
+                <svg class="ic"><use href="#icon-copy"/></svg><span>复制</span>
+              </button>
+            </div>
+            <pre><code id="client-code">export YOUZHAO_MCP_TOKEN=yz_mcp_...</code></pre>
+          </div>
+          <p class="foot-note"><code>yz_mcp_...</code> 是占位符，请替换为上一步创建的 Token。配置写入后重启客户端会话。</p>
+        </div>
+      </section>
+
+      <section class="sec" id="selfcheck-section" data-od-id="selfcheck-section">
+        <div class="sec-head">
+          <span class="sec-num">04</span>
+          <h3 data-od-id="selfcheck-heading">连接自检</h3>
+          <span class="sec-meta">initialize + tools/list</span>
+        </div>
+        <div class="sec-body">
+          <div class="check-grid">
+            <div>
+              <label class="label" for="check-token">检测用 Token</label>
+              <div class="check-row">
+                <div class="pw-wrap">
+                  <input class="input" id="check-token" type="password" placeholder="粘贴 yz_mcp_ 开头的 Token" autocomplete="off" spellcheck="false">
+                  <button type="button" class="eye-btn" id="toggle-token" aria-label="显示 Token" aria-pressed="false">
+                    <svg class="ic"><use href="#icon-eye"/></svg>
+                  </button>
+                </div>
+                <button type="button" class="btn btn-secondary" id="test-btn" data-od-id="test-connection-cta">
+                  <svg class="ic"><use href="#icon-plug"/></svg><span>检测连接</span>
+                </button>
+              </div>
+              <div class="result" id="check-result" aria-live="polite" data-od-id="selfcheck-result">
+                <div class="result-top"><span class="result-idle">尚未检测</span></div>
+                <p class="result-advice">使用上方 Token 发起一次握手与工具枚举，不会读取任何蓝图内容。</p>
+              </div>
+            </div>
+            <aside class="err-card" aria-label="结果说明">
+              <h4>结果说明</h4>
+              <p class="err-intro">失败时只改一处，再重试。</p>
+              <div class="err-item">
+                <span class="err-code">401</span>
+                <div>
+                  <div class="err-label">Token 无效</div>
+                  <p class="err-advice">确认 Token 完整、未被撤销，且 Bearer 后保留一个空格。</p>
+                </div>
+              </div>
+              <div class="err-item">
+                <span class="err-code">403</span>
+                <div>
+                  <div class="err-label">权限不足</div>
+                  <p class="err-advice">Token 缺少 scope，或账号已离开空间。补齐能力后重新创建。</p>
+                </div>
+              </div>
+              <div class="err-item">
+                <span class="err-code">503</span>
+                <div>
+                  <div class="err-label">服务不可用</div>
+                  <p class="err-advice">服务正在发布或触发限流。30 秒后重试，持续失败联系空间管理员。</p>
+                </div>
+              </div>
+            </aside>
+          </div>
+        </div>
+      </section>
+
+      <section class="sec" id="tools-section" data-od-id="tools-section">
+        <div class="sec-head">
+          <span class="sec-num">05</span>
+          <h3 data-od-id="tools-heading">工具清单</h3>
+          <span class="sec-meta">4 读 / 4 写</span>
+        </div>
+        <div class="sec-body">
+          <div class="tools-wrap">
+          <table class="tools" data-od-id="mcp-tools-table">
+            <caption class="sr-only">有招 MCP 提供的读写工具</caption>
+            <thead>
+              <tr>
+                <th scope="col">读工具 · read:blueprint<span class="tools-count">4</span></th>
+                <th scope="col">写工具 · publish:blueprint<span class="tools-count">4</span></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><div class="tool-name">list_blueprint_groups</div><div class="tool-desc">列出当前空间的蓝图分组。</div></td>
+                <td><div class="tool-name">publish_blueprint</div><div class="tool-desc">发布蓝图或更新已有版本。</div></td>
+              </tr>
+              <tr>
+                <td><div class="tool-name">list_blueprints</div><div class="tool-desc">分页列出可访问的蓝图。</div></td>
+                <td><div class="tool-name">cover_blueprint_version</div><div class="tool-desc">以新内容覆盖指定版本。</div></td>
+              </tr>
+              <tr>
+                <td><div class="tool-name">get_blueprint</div><div class="tool-desc">读取蓝图结构与节点详情。</div></td>
+                <td><div class="tool-name">delete_blueprint_version</div><div class="tool-desc">删除历史版本，不可撤销。</div></td>
+              </tr>
+              <tr>
+                <td><div class="tool-name">get_blueprint_artifact</div><div class="tool-desc">获取蓝图产物与下载地址。</div></td>
+                <td><div class="tool-name">create_blueprint_group</div><div class="tool-desc">在空间内新建蓝图分组。</div></td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+          <p class="foot-note">Token 能力 = 绑定用户权限 ∩ scope。publish:blueprint 不含读取；覆盖与删除操作不可撤销。</p>
+        </div>
+      </section>
+    </div>
+
+    <div class="modal-foot">
+      <span class="foot-status"><span class="env-dot"></span>MCP 2025-06-18 · Streamable HTTP</span>
+      <button type="button" class="btn btn-ghost btn-sm" id="close-panel-foot">关闭面板</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+const MCP_URL = 'https://youzhao.florai.cn/mcp';
+const PLACEHOLDER = 'yz_mcp_...';
+const CLIENTS = {
+  codex: {
+    file: 'Terminal · zsh',
+    hint: '先导出环境变量，再把服务注册到 Codex。环境变量名可自定义。',
+    code: [
+      'export YOUZHAO_MCP_TOKEN=' + PLACEHOLDER,
+      'codex mcp add youzhao \\',
+      '  --url ' + MCP_URL + ' \\',
+      '  --bearer-token-env-var YOUZHAO_MCP_TOKEN'
+    ].join('\n')
+  },
+  'claude-desktop': {
+    file: 'Shell · mcp-remote',
+    hint: '经 mcp-remote 桥接远端 MCP；先确认 npx 可用，再写入 Claude Desktop 配置。',
+    code: [
+      'npx -y mcp-remote ' + MCP_URL + ' \\',
+      '  --header "Authorization: Bearer ' + PLACEHOLDER + '"'
+    ].join('\n')
+  },
+  'claude-code': {
+    file: 'Terminal · 项目根目录',
+    hint: '在项目根目录执行，配置写入当前项目的 Claude Code 设置。',
+    code: [
+      'claude mcp add --transport http youzhao \\',
+      '  ' + MCP_URL + ' \\',
+      '  --header "Authorization: Bearer ' + PLACEHOLDER + '"'
+    ].join('\n')
+  },
+  cursor: {
+    file: '.cursor/mcp.json',
+    hint: '保存到项目根目录的 .cursor/mcp.json，然后在 Cursor 设置中确认服务已启用。',
+    code: JSON.stringify({
+      mcpServers: {
+        youzhao: {
+          url: MCP_URL,
+          headers: { Authorization: 'Bearer ' + PLACEHOLDER }
+        }
+      }
+    }, null, 2)
+  },
+  vscode: {
+    file: '.vscode/mcp.json',
+    hint: '保存到 .vscode/mcp.json，随后在 MCP 视图中启动 youzhao 服务。',
+    code: JSON.stringify({
+      servers: {
+        youzhao: {
+          type: 'http',
+          url: MCP_URL,
+          headers: { Authorization: 'Bearer ' + PLACEHOLDER }
+        }
+      }
+    }, null, 2)
+  },
+  curl: {
+    file: 'Terminal · curl',
+    hint: '不写入任何配置；用于确认握手和工具列表可以正常返回。',
+    code: [
+      'curl -sS ' + MCP_URL + ' \\',
+      '  -H "Authorization: Bearer ' + PLACEHOLDER + '" \\',
+      '  -H "Content-Type: application/json" \\',
+      '  -H "Accept: application/json, text/event-stream" \\',
+      '  -d \'{"jsonrpc":"2.0","id":1,"method":"tools/list"}\''
+    ].join('\n')
+  }
+};
+
+const $ = (selector, root = document) => root.querySelector(selector);
+const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
+const overlay = $('#mcp-overlay');
+const modal = $('.modal', overlay);
+const modalBody = $('.modal-body', overlay);
+const state = { token: null, scopes: [], expiry: '', name: '', saved: false };
+let currentClient = 'codex';
+let lastTrigger = null;
+let toastTimer = null;
+
+const pad = value => String(value).padStart(2, '0');
+const today = new Date();
+const defaultCustomDate = new Date(today.getTime() + 90 * 864e5);
+$('#custom-date').min = today.getFullYear() + '-' + pad(today.getMonth() + 1) + '-' + pad(today.getDate());
+$('#custom-date').value = defaultCustomDate.getFullYear() + '-' + pad(defaultCustomDate.getMonth() + 1) + '-' + pad(defaultCustomDate.getDate());
+
+function toast(message) {
+  const el = $('#toast');
+  el.textContent = message;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2200);
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
+}
+
+async function copyText(text, button) {
+  if (!text) {
+    toast('暂无可复制的 Token');
+    return;
+  }
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+    } else {
+      const helper = document.createElement('textarea');
+      helper.value = text;
+      helper.style.position = 'fixed';
+      helper.style.opacity = '0';
+      document.body.appendChild(helper);
+      helper.select();
+      document.execCommand('copy');
+      helper.remove();
+    }
+    toast('已复制到剪贴板');
+    if (button) flashCopied(button);
+  } catch (error) {
+    toast('复制失败，请手动选择文本');
+  }
+}
+
+function flashCopied(button) {
+  const label = button.querySelector('span');
+  const use = button.querySelector('use');
+  if (!label) return;
+  const original = label.textContent;
+  label.textContent = '已复制';
+  if (use) use.setAttribute('href', '#icon-check');
+  setTimeout(() => {
+    label.textContent = original;
+    if (use) use.setAttribute('href', '#icon-copy');
+  }, 1600);
+}
+
+function openPanel(trigger) {
+  lastTrigger = trigger || null;
+  overlay.hidden = false;
+  document.body.classList.add('modal-open');
+  setTimeout(() => modal.focus({ preventScroll: true }), 30);
+}
+
+function closePanel() {
+  overlay.hidden = true;
+  document.body.classList.remove('modal-open');
+  const target = lastTrigger || $('#connect-agent');
+  if (target) target.focus({ preventScroll: true });
+}
+
+function scrollToSection(element) {
+  const top = element.getBoundingClientRect().top - modalBody.getBoundingClientRect().top + modalBody.scrollTop - 6;
+  modalBody.scrollTo({ top: Math.max(0, top), behavior: 'smooth' });
+}
+
+function trapFocus(event) {
+  const focusable = $$('button:not([disabled]), input:not([disabled]), [href], select, textarea, [tabindex]:not([tabindex="-1"])', modal)
+    .filter(element => element.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
+function selectedScopes() {
+  return $$('.scope input:checked').map(input => input.value);
+}
+
+function syncExpiryUI() {
+  const selected = $('input[name="expiry"]:checked');
+  const isCustom = selected && selected.value === 'custom';
+  $('#date-field').hidden = !isCustom;
+  if (!isCustom) $('#date-error').hidden = true;
+}
+
+function setClient(key) {
+  if (!CLIENTS[key]) return;
+  currentClient = key;
+  $$('.seg-btn').forEach(button => {
+    const active = button.dataset.client === key;
+    button.classList.toggle('active', active);
+    button.setAttribute('aria-selected', active ? 'true' : 'false');
+    button.tabIndex = active ? 0 : -1;
+  });
+  const client = CLIENTS[key];
+  $('#client-hint').textContent = client.hint;
+  $('#client-file').textContent = client.file;
+  $('#client-code').textContent = client.code;
+}
+
+function generateToken() {
+  const bytes = new Uint8Array(20);
+  crypto.getRandomValues(bytes);
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789';
+  let suffix = '';
+  bytes.forEach(byte => { suffix += alphabet[byte % alphabet.length]; });
+  return 'yz_mcp_' + suffix;
+}
+
+function setResultIdle() {
+  $('#check-result').removeAttribute('aria-busy');
+  $('#check-result').innerHTML = '<div class="result-top"><span class="result-idle">尚未检测</span></div><p class="result-advice">使用上方 Token 发起一次握手与工具枚举，不会读取任何蓝图内容。</p>';
+}
+
+function renderTesting() {
+  $('#check-result').setAttribute('aria-busy', 'true');
+  $('#check-result').innerHTML = '<div class="result-top"><span class="spinner"></span><span>正在握手</span></div><div class="result-meta"><span>initialize</span><span class="result-dot"></span><span>tools/list</span></div><p class="result-advice">正在确认 Token、协议版本与可见工具。</p>';
+}
+
+function renderSuccess(readCount, writeCount) {
+  const total = readCount + writeCount;
+  $('#check-result').removeAttribute('aria-busy');
+  $('#check-result').innerHTML = '<div class="result-top"><svg class="ic result-ok"><use href="#icon-check-circle"/></svg><span>连接正常</span></div>'
+    + '<div class="result-meta"><span>协议 <code>2025-06-18</code></span><span class="result-dot"></span><span>可见 <code>' + total + '</code> 个工具（' + readCount + ' 读 / ' + writeCount + ' 写）</span><span class="result-dot"></span><span><code>218 ms</code></span></div>'
+    + '<p class="result-advice">握手与工具枚举均成功。回到客户端重启会话后，即可让 Agent 调用这些工具。</p>';
+}
+
+function renderError(code) {
+  const errors = {
+    401: { title: 'Token 无效', advice: '确认 Token 完整且未被撤销，Bearer 与 Token 之间保留一个空格。修改后再次检测。', action: '重新创建 Token', kind: 'recreate' },
+    403: { title: '权限不足', advice: '当前 Token 未覆盖所需 scope，或账号已被移出空间。补齐 read:blueprint / publish:blueprint 后重新创建。', action: '补齐能力并重建', kind: 'recreate' },
+    503: { title: '服务不可用', advice: 'MCP 服务正在发布或触发限流。30 秒后重试；持续失败时联系空间管理员。', action: '重试一次', kind: 'retry' }
+  };
+  const error = errors[code];
+  $('#check-result').removeAttribute('aria-busy');
+  $('#check-result').innerHTML = '<div class="result-top"><svg class="ic result-bad"><use href="#icon-alert"/></svg><span>' + code + ' · ' + error.title + '</span></div>'
+    + '<p class="result-advice">' + error.advice + '</p>'
+    + '<button type="button" class="link-btn result-action" data-result-action="' + error.kind + '">' + error.action + '</button>';
+}
+
+function runCheck() {
+  const button = $('#test-btn');
+  const original = button.innerHTML;
+  const token = $('#check-token').value.trim();
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner"></span><span>检测中</span>';
+  renderTesting();
+  setTimeout(() => {
+    button.disabled = false;
+    button.innerHTML = original;
+    if (!navigator.onLine) {
+      renderError(503);
+      return;
+    }
+    if (!token || !/^yz_mcp_[a-z0-9]{8,}$/i.test(token)) {
+      renderError(401);
+      return;
+    }
+    const scopes = state.token ? state.scopes : selectedScopes();
+    if (!scopes.length) {
+      renderError(403);
+      return;
+    }
+    const readCount = scopes.includes('read:blueprint') ? 4 : 0;
+    const writeCount = scopes.includes('publish:blueprint') ? 4 : 0;
+    renderSuccess(readCount, writeCount);
+  }, 760);
+}
+
+function addCreatedRow() {
+  const row = document.createElement('tr');
+  const scopes = state.scopes.map(scope => '<span class="scope-tag">' + scope + '</span>').join('');
+  row.innerHTML = '<td><div class="cell-name">' + escapeHtml(state.name) + '</div><div class="cell-sub">刚刚创建</div></td>'
+    + '<td>' + scopes + '</td>'
+    + '<td><span class="cell-muted">' + escapeHtml(state.expiry) + '</span></td>'
+    + '<td><span class="cell-muted">尚未使用</span></td>'
+    + '<td><span class="status"><span class="status-dot"></span>有效</span></td>'
+    + '<td><button type="button" class="row-action" data-row-action="revoke">撤销</button></td>';
+  $('#token-body').prepend(row);
+  const count = String($$('#token-body tr').length);
+  $('#token-count').textContent = count;
+  $('.nav-count').textContent = count;
+}
+
+function startCreating() {
+  const button = $('#create-btn');
+  const original = button.innerHTML;
+  button.disabled = true;
+  button.innerHTML = '<span class="spinner"></span><span>创建中</span>';
+  $$('#token-form input, #token-form button').forEach(element => { element.disabled = true; });
+  setTimeout(() => {
+    state.token = generateToken();
+    state.saved = false;
+    button.disabled = false;
+    button.innerHTML = original;
+    $$('#token-form input, #token-form button').forEach(element => { element.disabled = false; });
+    $('#token-val').textContent = state.token;
+    $('#meta-name').textContent = state.name;
+    $('#meta-scopes').textContent = state.scopes.length === 2 ? 'read:blueprint + publish:blueprint' : state.scopes[0];
+    $('#meta-expiry').textContent = state.expiry;
+    $('#token-form').hidden = true;
+    $('#token-layout').hidden = true;
+    $('#reveal-wrap').hidden = false;
+    $('#saved-wrap').hidden = true;
+    $('#check-token').value = state.token;
+    $('#check-token').type = 'password';
+    $('#toggle-token').setAttribute('aria-pressed', 'false');
+    $('#toggle-token').setAttribute('aria-label', '显示 Token');
+    const eyeUse = $('#toggle-token').querySelector('use');
+    if (eyeUse) eyeUse.setAttribute('href', '#icon-eye');
+    setResultIdle();
+    addCreatedRow();
+    scrollToSection($('#token-section'));
+    toast('Token 已创建');
+  }, 900);
+}
+
+function resetForm() {
+  state.token = null;
+  state.scopes = [];
+  state.expiry = '';
+  state.saved = false;
+  $('#token-form').hidden = false;
+  $('#token-layout').hidden = false;
+  $('#reveal-wrap').hidden = true;
+  $('#saved-wrap').hidden = true;
+  $('#token-name').value = '';
+  $('#scope-read').checked = true;
+  $('#scope-publish').checked = true;
+  $('#expiry-90').checked = true;
+  $('#name-error').hidden = true;
+  $('#scope-error').hidden = true;
+  $('#date-error').hidden = true;
+  $('#token-name').removeAttribute('aria-invalid');
+  syncExpiryUI();
+  $('#check-token').value = '';
+  $('#check-token').type = 'password';
+  $('#toggle-token').setAttribute('aria-pressed', 'false');
+  $('#toggle-token').setAttribute('aria-label', '显示 Token');
+  const resetEye = $('#toggle-token').querySelector('use');
+  if (resetEye) resetEye.setAttribute('href', '#icon-eye');
+  setResultIdle();
+  $$('#token-form input, #token-form button').forEach(element => { element.disabled = false; });
+  const createButton = $('#create-btn');
+  createButton.disabled = false;
+  createButton.innerHTML = '创建 Token';
+}
+
+function goToCreate() {
+  resetForm();
+  scrollToSection($('#token-section'));
+  setTimeout(() => $('#token-name').focus({ preventScroll: true }), 320);
+}
+
+$('#token-form').addEventListener('submit', event => {
+  event.preventDefault();
+  const name = $('#token-name').value.trim();
+  const scopes = selectedScopes();
+  const expiryChoice = $('input[name="expiry"]:checked').value;
+  const customDate = $('#custom-date').value;
+  let valid = true;
+  $('#name-error').hidden = Boolean(name);
+  if (!name) {
+    $('#token-name').setAttribute('aria-invalid', 'true');
+    valid = false;
+  } else {
+    $('#token-name').removeAttribute('aria-invalid');
+  }
+  $('#scope-error').hidden = scopes.length > 0;
+  if (!scopes.length) valid = false;
+  $('#date-error').hidden = expiryChoice !== 'custom' || Boolean(customDate);
+  if (expiryChoice === 'custom' && !customDate) valid = false;
+  if (!valid) {
+    if (!name) $('#token-name').focus();
+    else if (expiryChoice === 'custom' && !customDate) $('#custom-date').focus();
+    return;
+  }
+  state.name = name;
+  state.scopes = scopes;
+  state.expiry = expiryChoice === 'never'
+    ? '永不过期'
+    : expiryChoice === 'custom'
+      ? '至 ' + customDate
+      : (expiryChoice === '30d' ? '30 天' : '90 天');
+  startCreating();
+});
+
+$('#token-name').addEventListener('input', () => {
+  if ($('#token-name').value.trim()) {
+    $('#name-error').hidden = true;
+    $('#token-name').removeAttribute('aria-invalid');
+  }
+});
+
+$$('.scope input').forEach(input => input.addEventListener('change', () => {
+  if (selectedScopes().length) $('#scope-error').hidden = true;
+}));
+
+$$('input[name="expiry"]').forEach(radio => radio.addEventListener('change', syncExpiryUI));
+
+$('#custom-date').addEventListener('input', () => {
+  if ($('#custom-date').value) $('#date-error').hidden = true;
+});
+
+$('#saved-token').addEventListener('click', () => {
+  state.saved = true;
+  $('#reveal-wrap').hidden = true;
+  $('#saved-wrap').hidden = false;
+  $('#saved-prefix').textContent = state.token.slice(0, 11) + '…';
+  toast('Token 已保存');
+});
+
+$('#test-created').addEventListener('click', () => {
+  if (!state.token) return;
+  $('#check-token').value = state.token;
+  scrollToSection($('#selfcheck-section'));
+  setTimeout(runCheck, 300);
+});
+
+$('#recreate-token').addEventListener('click', goToCreate);
+
+$('#test-btn').addEventListener('click', runCheck);
+
+$('#check-result').addEventListener('click', event => {
+  const action = event.target.closest('[data-result-action]');
+  if (!action) return;
+  if (action.dataset.resultAction === 'retry') runCheck();
+  else goToCreate();
+});
+
+$('#toggle-token').addEventListener('click', event => {
+  const button = event.currentTarget;
+  const input = $('#check-token');
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  button.setAttribute('aria-pressed', show ? 'true' : 'false');
+  button.setAttribute('aria-label', show ? '隐藏 Token' : '显示 Token');
+  const use = button.querySelector('use');
+  if (use) use.setAttribute('href', show ? '#icon-eye-off' : '#icon-eye');
+});
+
+$('#client-tabs').addEventListener('click', event => {
+  const button = event.target.closest('.seg-btn');
+  if (button) setClient(button.dataset.client);
+});
+
+$('#client-tabs').addEventListener('keydown', event => {
+  if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft') return;
+  event.preventDefault();
+  const keys = Object.keys(CLIENTS);
+  const index = keys.indexOf(currentClient);
+  const next = event.key === 'ArrowRight' ? (index + 1) % keys.length : (index - 1 + keys.length) % keys.length;
+  setClient(keys[next]);
+  $('.seg-btn[data-client="' + keys[next] + '"]').focus();
+});
+
+$('#token-body').addEventListener('click', event => {
+  const button = event.target.closest('[data-row-action]');
+  if (!button) return;
+  const row = button.closest('tr');
+  const status = row.querySelector('.status');
+  const removed = button.dataset.rowAction === 'delete';
+  if (status) {
+    status.classList.add('off');
+    status.innerHTML = '<span class="status-dot"></span>' + (removed ? '已删除' : '已撤销');
+  }
+  button.closest('td').innerHTML = '<span class="cell-muted">—</span>';
+  toast(removed ? 'Token 已删除' : 'Token 已撤销');
+});
+
+$$('[data-copy]').forEach(button => {
+  button.addEventListener('click', event => {
+    const target = event.currentTarget;
+    const type = target.dataset.copy;
+    const text = type === 'endpoint'
+      ? MCP_URL
+      : type === 'auth'
+        ? 'Authorization: Bearer <Token>'
+        : type === 'client'
+          ? $('#client-code').textContent
+          : state.token;
+    copyText(text, target);
+  });
+});
+
+$$('.open-panel').forEach(button => button.addEventListener('click', event => openPanel(event.currentTarget)));
+$('#close-panel').addEventListener('click', closePanel);
+$('#close-panel-foot').addEventListener('click', closePanel);
+overlay.addEventListener('click', event => {
+  if (event.target === overlay) closePanel();
+});
+
+document.addEventListener('keydown', event => {
+  if (overlay.hidden) return;
+  if (event.key === 'Escape') {
+    event.preventDefault();
+    closePanel();
+  } else if (event.key === 'Tab') {
+    trapFocus(event);
+  }
+});
+
+const navButtons = $$('.nav-item');
+navButtons.forEach(button => button.addEventListener('click', () => toast('此演示聚焦 MCP 接入面板')));
+setClient('codex');
+syncExpiryUI();
+setTimeout(() => modal.focus({ preventScroll: true }), 80);
+</script>
+</body>
+</html>

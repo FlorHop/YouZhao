@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "kind": "html",
+  "title": "mcp-access-console.html",
+  "entry": "mcp-access-console.html",
+  "renderer": "html",
+  "status": "complete",
+  "exports": [
+    "html",
+    "pdf",
+    "zip"
+  ],
+  "createdAt": "2026-10-19T05:19:46.638Z",
+  "updatedAt": "2026-10-19T05:19:46.638Z",
+  "metadata": {
+    "inferred": true,
+    "reconciled": true
+  }
+}

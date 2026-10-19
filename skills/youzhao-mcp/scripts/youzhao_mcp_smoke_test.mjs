@@ -3,7 +3,7 @@
  * 有招 MCP stdio 冒烟测试（skills/youzhao-mcp/scripts/youzhao_mcp_smoke_test.mjs）。
  *
  * 用法：
- *   YOUZHAO_API_BASE=http://127.0.0.1:4174 \
+ *   YOUZHAO_API_BASE=https://youzhao.florai.cn \
  *   YOUZHAO_MCP_TOKEN=yz_mcp_xxx_yyy \
  *   node skills/youzhao-mcp/scripts/youzhao_mcp_smoke_test.mjs path/to/server/mcp-server.mjs
  *
