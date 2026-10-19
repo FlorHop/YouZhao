@@ -103,7 +103,7 @@ async function grantView(
 
 // ── 分组 ─────────────────────────────────────────────────────────────────────
 
-test('分组：新建分组取最大 sortOrder +10，并给持有 blueprint.manage 的用户与操作者本人补查看授权', async () => {
+test('分组：新建分组取最大 sortOrder +10，只给创建者本人授权（所有者不写行、其他管理者不被自动授权）', async () => {
   const root = await tempRoot();
   const context = await createTestContext({ PREVIEW_STORAGE_PATH: root });
   try {
@@ -111,22 +111,36 @@ test('分组：新建分组取最大 sortOrder +10，并给持有 blueprint.mana
     const { ownerId, memberId } = await seedWorld(db);
     const owner = await buildUserContext(db, ownerId);
     await grantCapability(db, memberId, 'blueprint.manage', 'group', DEFAULT_GROUP_ID, ownerId);
+    // 授权之后再造当事人上下文，否则快照里没有 capabilities
+    const member = await buildUserContext(db, memberId);
 
-    const created = await createBlueprintGroup(db, owner, { name: '设计基线' }, FACTS);
-    const groupId = created.group.id;
-    if (created.group.sortOrder !== 10) throw new Error(`期望 sortOrder 10，实际 ${created.group.sortOrder}`);
-    if (created.group.archivedAt !== null) throw new Error('新分组不应带归档时间');
+    const grantsOf = async (groupTargetId: string) =>
+      db
+        .selectFrom('view_grants')
+        .selectAll()
+        .where('target_type', '=', 'group')
+        .where('target_id', '=', groupTargetId)
+        .execute();
 
-    const grants = await db
-      .selectFrom('view_grants')
-      .selectAll()
-      .where('target_type', '=', 'group')
-      .where('target_id', '=', groupId)
-      .execute();
-    const userIds = grants.map((row) => row.user_id).sort();
-    if (!userIds.includes(memberId)) throw new Error('持有 blueprint.manage 的成员未获得查看授权');
-    if (!userIds.includes(ownerId)) throw new Error('操作者本人未获得查看授权');
-    if (grants.some((row) => row.granted_by !== ownerId)) throw new Error('granted_by 应为操作者');
+    // 所有者建组：隐式可见全部分组，不写授权行
+    const byOwner = await createBlueprintGroup(db, owner, { name: '设计基线' }, FACTS);
+    if (byOwner.group.sortOrder !== 10) {
+      throw new Error(`期望 sortOrder 10，实际 ${byOwner.group.sortOrder}`);
+    }
+    if (byOwner.group.archivedAt !== null) throw new Error('新分组不应带归档时间');
+    const ownerGrants = await grantsOf(byOwner.group.id);
+    if (ownerGrants.length !== 0) {
+      throw new Error(`所有者建组不应写授权行，实际 ${ownerGrants.length} 行`);
+    }
+
+    // 非所有者建组：只授权创建者本人；别的管理者（member 对本组没有能力范围）不被顺手授权
+    const byMember = await createBlueprintGroup(db, member, { name: '研发' }, FACTS);
+    const memberGrants = await grantsOf(byMember.group.id);
+    const userIds = memberGrants.map((row) => row.user_id);
+    if (userIds.length !== 1 || userIds[0] !== memberId) {
+      throw new Error(`只应授权创建者，实际 [${userIds.join(', ')}]`);
+    }
+    if (memberGrants[0]?.granted_by !== memberId) throw new Error('granted_by 应为创建者');
   } finally {
     await context.close();
   }

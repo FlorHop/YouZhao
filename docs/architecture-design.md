@@ -1022,7 +1022,7 @@ can('user.create')                          // 装配页头主操作
 
 **旧数据迁移（真实旧站快照，非合成）**
 
-旧站实际跑在 **VM103 `192.168.1.13`**（ECS 的 `youzhao.florai.cn` vhost 只是 frp 隧道回内网），数据在 `/data/youzhao`（`youzhao.sqlite` 430 080 字节、`pragma integrity_check=ok`、`previews/` 4.1 M）。搬运 `tar` → `scp` → `tar -xzf … -C data`（**归档根是 `youzhao/`**，就地解压会散落）。迁移结果：`users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4 capabilities=0`，产物 15 个蓝图目录 / 4.1 M。可见范围对照唯一变化：`demo`（member）4 → 8 蓝图**变宽**（旧模型要求函数级 `demo-preview:view` **且** 资源级授权，新模型只看资源级）。未迁移：`functionPermission(admin) demo-preview:manage`（owner 隐式全能力）、119 条旧 `auditLogs`（缺可用时间与 `request_id`）、`publishResultsByKey`。迁移用户口令由旧明文口径改为 scrypt，`must_change_password=true`。
+旧站实际跑在 **VM103 `192.168.1.13`**（ECS 的 `youzhao.florai.cn` vhost 只是 frp 隧道回内网），数据在 `/data/youzhao`（`youzhao.sqlite` 430 080 字节、`pragma integrity_check=ok`、`previews/` 4.1 M）。搬运 `tar` → `scp` → `tar -xzf … -C data`（**归档根是 `youzhao/`**，就地解压会散落）。迁移结果：`users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4 capabilities=0`，产物 15 个蓝图目录 / 4.1 M（该 27 行中含所有者行，属迁移语义偏差，见下文「授权一致性修正」）。可见范围对照唯一变化：`demo`（member）4 → 8 蓝图**变宽**（旧模型要求函数级 `demo-preview:view` **且** 资源级授权，新模型只看资源级）。未迁移：`functionPermission(admin) demo-preview:manage`（owner 隐式全能力）、119 条旧 `auditLogs`（缺可用时间与 `request_id`）、`publishResultsByKey`。迁移用户口令由旧明文口径改为 scrypt，`must_change_password=true`。
 
 **真库冒烟发现的两个「只在本机 PGlite 测不出」的缺陷（已修）**
 
@@ -1043,7 +1043,18 @@ can('user.create')                          // 装配页头主操作
 
 **教学点：PGlite 与真 pg 的类型强制不等价**。PGlite（本机测试/开发驱动）把 `bigint` 返回为 JS number，node-postgres 默认返回字符串；凡把数值列序列化进 JSON Schema（`integer`）或 `outputSchema` 的地方，两端行为不同。**门禁（PGlite）全绿不代表真库通过**——真机冒烟是 M6 的必需环节。同类差异还有 `numeric`/`decimal`（默认返回字符串）与 `date` 精度，新增数值列时优先用 `integer`/`bigint` + 显式 `Number()`，或统一在 `pool.ts` 的类型解析器里收敛。
 
-**剩余步骤（切流）**：① 用户在阿里云加 `preview.youzhao.florai.cn` A 记录 → `8.136.181.191`；② `certbot` 为预览域签发证书；③ 把 `api.env.prod` 换成 `api.env` 并重启 api（`APP_ENV=production` 后 Cookie 变 `Secure`，必须全程 https）；④ 用生产 vhost 替换 `/etc/nginx/conf.d/youzhao.florai.cn.conf`（应用域 `/preview*` 一律 404，预览域只给 `/preview`）；⑤ 切后重跑两条冒烟 + 让旧机 `youzhao-api.service` 停用；⑥ 更新 `docs/deployment-rules.md` 以记录原生安装形态与 frp 拓扑。
+**切流完成（同日）**：① 用户在阿里云加 `preview.youzhao.florai.cn` A 记录 → `8.136.181.191`（223.5.5.5 / 8.8.8.8 / 1.1.1.1 三家一致）；② `certbot --webroot` 为预览域签发证书（`/etc/letsencrypt/live/preview.youzhao.florai.cn`）；③ `api.env.prod` 覆盖 `/etc/youzhao/api.env` 并重启 api（`APP_ENV=production` ⇒ Cookie `Secure`，必须全程 https；`/api/health` 报 `appEnv: "production"`）；④ 生产 vhost 替换旧 vhost（`youzhao.florai.cn` 应用域，`/preview*` 一律 404；`preview.youzhao.florai.cn` 只放 `/preview/`，其余 404）；⑤ 切后在**公网 https** 上重跑两条冒烟：`smoke-e2e` **16/16**、`smoke-ui` **15/15**；⑥ `docs/deployment-rules.md` 记录原生安装形态与 frp 拓扑。
+**切流后待办**：停用旧机（VM103 `192.168.1.13`）`youzhao-api.service`（**待用户确认**，旧站随时可回滚）；删除并行验证用的临时 vhost（9443/8444）与 SSH 隧道；清理生产库中的冒烟残留对象。
+
+**授权一致性修正（切流后复核生产库发现，已在生产库执行）**
+
+| # | 问题 | 修复 |
+| --- | --- | --- |
+| 1 | 迁移计划为**所有者**生成 `view_grants` 行，与本文档「所有者在迁移计划里不生成 `view_grants`/`capabilities` 行」相矛盾 | `server/db/legacy/plan.ts` 的授权循环跳过 `perm.userId === ownerUserId`，并计入 `dropped` 与警告 |
+| 2 | 新建分组时把新分组**授予全部持 `blueprint.manage` 的用户**（旧模型遗留的自动授权），越出其能力范围；同时对所有者写冗余行 | `server/app/blueprints.ts::createBlueprintGroup` 改为**只授予创建者本人**，并跳过所有者 |
+| 3 | 发布蓝图时给创建者补的蓝图授权，对所有者同样冗余 | 同一处跳过所有者 |
+
+生产库已按新语义修正（先备份 `view_grants` 到 `/root/youzhao-backup-20261019/`，再删除悬挂行与所有者行）：清除后 `view_grants` = **4 行**（`demo` 2 + `xinje` 1 + `yl` 1；所有者隐式全可见，无需行）。悬挂行（3 蓝图 + 3 分组）是清理冒烟对象时只删对象未删授权所致。
 
 ---
 

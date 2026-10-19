@@ -375,24 +375,20 @@ export async function createBlueprintGroup(
         throw error;
       }
 
-      const managers = await db
-        .selectFrom('capabilities')
-        .select(['user_id'])
-        .where('capability', '=', 'blueprint.manage')
-        .execute();
-      const recipients = [...new Set([...managers.map((row) => row.user_id), context.userId])];
-      if (recipients.length > 0) {
+      // 只给创建者本人一条查看授权。旧模型在新建分组时会把该分组授权给「所有持有
+      // demo-preview:manage 的用户」——那既越出各人能力（blueprint.manage）自带的资源
+      // 范围，也让「查看范围只能由 O/A 增量授权」失去意义，属于旧模型已被审计的缺陷，
+      // 不带进 v2。所有者隐式可见全部分组，同样不写行。
+      if (context.identity !== 'owner') {
         await db
           .insertInto('view_grants')
-          .values(
-            recipients.map((userId) => ({
-              id: newId('grn'),
-              user_id: userId,
-              target_type: 'group',
-              target_id: groupId,
-              granted_by: context.userId,
-            })),
-          )
+          .values({
+            id: newId('grn'),
+            user_id: context.userId,
+            target_type: 'group',
+            target_id: groupId,
+            granted_by: context.userId,
+          })
           .onConflict((oc) => oc.columns(['user_id', 'target_type', 'target_id']).doNothing())
           .execute();
       }
@@ -785,18 +781,21 @@ export async function createBlueprint(
               deployed_at: now,
             })
             .execute();
-          // 创建者本人也要一条蓝图查看授权（能力随分组走，移动出去后仍看得到自己建的）
-          await trx
-            .insertInto('view_grants')
-            .values({
-              id: newId('grn'),
-              user_id: context.userId,
-              target_type: 'blueprint',
-              target_id: blueprintId,
-              granted_by: context.userId,
-            })
-            .onConflict((oc) => oc.columns(['user_id', 'target_type', 'target_id']).doNothing())
-            .execute();
+          // 创建者本人也要一条蓝图查看授权（能力随分组走，移动出去后仍看得到自己建的）。
+          // 所有者隐式可见全部蓝图，不写行。
+          if (context.identity !== 'owner') {
+            await trx
+              .insertInto('view_grants')
+              .values({
+                id: newId('grn'),
+                user_id: context.userId,
+                target_type: 'blueprint',
+                target_id: blueprintId,
+                granted_by: context.userId,
+              })
+              .onConflict((oc) => oc.columns(['user_id', 'target_type', 'target_id']).doNothing())
+              .execute();
+          }
         });
       } catch (error) {
         await removeArtifactDir(call.storageRoot, blueprintId, input.version);

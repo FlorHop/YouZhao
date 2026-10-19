@@ -169,6 +169,24 @@ test('迁移计划：授权按 group→group、demo→blueprint 映射，并补�
   assert.ok(plan.warnings.some((warning) => /不存在的分组 group_removed/.test(warning)));
 });
 
+test('迁移计划：所有者的旧蓝图授权不生成 view_grants 行（隐式全可见）', () => {
+  const state = syntheticState();
+  state.blueprintPermissions.push({ userId: 'u1', targetType: 'group', targetId: 'group_city' });
+  state.blueprintPermissions.push({ userId: 'u1', targetType: 'blueprint', targetId: 'bp_city_001' });
+
+  const plan = planLegacyMigration(state, { ownerUsername: 'admin' });
+
+  assert.equal(
+    plan.grants.filter((grant) => grant.userId === plan.ownerUserId).length,
+    0,
+    '所有者不写授权行',
+  );
+  assert.ok(
+    plan.dropped.some((note) => /blueprintPermissions\(admin\) 共 2 条/.test(note)),
+    '丢弃项里应记录所有者的旧授权行',
+  );
+});
+
 test('迁移计划：demo-preview:manage → blueprint.manage，且绝不自动授予发布能力', () => {
   const plan = planLegacyMigration(syntheticState(), { ownerUsername: 'admin' });
   const manage = plan.capabilities.filter((capability) => capability.userId === 'u2');

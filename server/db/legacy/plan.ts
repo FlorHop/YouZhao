@@ -322,7 +322,19 @@ export function planLegacyMigration(
     grants.push(grant);
   };
 
+  // 所有者的旧授权行不迁移：他在新模型里隐式可见全部蓝图与分组（见 §3.5 不变量），
+  // 写行只会让「谁能看什么」的报表变脏。
+  const ownerPermissionCount = state.blueprintPermissions.filter(
+    (perm) => perm.userId === ownerUserId,
+  ).length;
+  if (ownerPermissionCount > 0) {
+    dropped.push(
+      `blueprintPermissions(${usernameOf(usersById, ownerUserId)}) 共 ${ownerPermissionCount} 条 —— 所有者在新模型里隐式可见全部蓝图与分组`,
+    );
+  }
+
   for (const perm of state.blueprintPermissions) {
+    if (perm.userId === ownerUserId) continue;
     if (!usersById.has(perm.userId)) {
       warnings.push(`蓝图授权指向不存在的用户 ${perm.userId}，已跳过`);
       continue;

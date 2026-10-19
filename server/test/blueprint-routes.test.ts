@@ -528,7 +528,7 @@ test('场景4：POST /api/blueprint-groups —— 缺能力 403、重名 409、�
   });
   await expectErrorCode(duplicate, 409, 'GROUP_CONFLICT');
 
-  // 建组会给「持 blueprint.manage 的用户 + 操作者本人」补分组查看授权
+  // 所有者隐式可见全部分组，不写授权行（见 docs/architecture-design.md）
   const grants = await harness.context.db
     .selectFrom('view_grants')
     .selectAll()
@@ -537,7 +537,7 @@ test('场景4：POST /api/blueprint-groups —— 缺能力 403、重名 409、�
     .execute();
   assert.deepEqual(
     grants.map((row) => row.user_id),
-    [harness.owner.id],
+    [],
   );
 
   // 只持 blueprint.manage 的用户也能建组（group.create 判的是「是否持有该能力」）
