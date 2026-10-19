@@ -1,0 +1,1061 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Token · MCP 接入 · 有招</title>
+  <style>
+    :root {
+      --bg:           #ffffff;
+      --surface:      #f5f5f5;
+      --surface-warm: #fafafa;
+      --fg:   #0d0d0d;
+      --fg-2: #1a1a1a;
+      --muted: #6e6e6e;
+      --meta:  #9b9b9b;
+      --border:      #e5e5e5;
+      --border-soft: #ededed;
+      --accent:        #10a37f;
+      --accent-on:     #ffffff;
+      --accent-hover:  #0a7a5e;
+      --accent-active: color-mix(in oklab, var(--accent), black 14%);
+      --success: #10a37f;
+      --warn:    #f5a623;
+      --danger:  #ef4146;
+      --font-display: "Signifier", "Source Serif Pro", Georgia, ui-serif, serif;
+      --font-body:    "Söhne", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+      --font-mono:    "Söhne Mono", ui-monospace, "JetBrains Mono", Menlo, Consolas, monospace;
+      --text-xs:   12px;
+      --text-sm:   13px;
+      --text-base: 16px;
+      --text-lg:   18px;
+      --text-xl:   20px;
+      --text-2xl:  28px;
+      --text-3xl:  40px;
+      --text-4xl:  56px;
+      --leading-body:     1.65;
+      --leading-tight:    1.08;
+      --tracking-display: -0.02em;
+      --space-1:  4px;
+      --space-2:  8px;
+      --space-3:  12px;
+      --space-4:  16px;
+      --space-5:  20px;
+      --space-6:  24px;
+      --space-8:  32px;
+      --space-12: 48px;
+      --space-16: 64px;
+      --section-y-desktop: 96px;
+      --section-y-tablet:  64px;
+      --section-y-phone:   48px;
+      --radius-sm:   12px;
+      --radius-md:   16px;
+      --radius-lg:   16px;
+      --radius-pill: 9999px;
+      --elev-flat:   none;
+      --elev-ring:   0 0 0 1px var(--border);
+      --elev-raised: 0 4px 16px rgba(13, 13, 13, 0.06);
+      --focus-ring: 0 0 0 3px rgba(16, 163, 127, 0.12);
+      --overlay: rgba(13, 13, 13, 0.36);
+      --shadow-modal: 0 24px 80px rgba(13, 13, 13, 0.18);
+      --spinner-track: rgba(255, 255, 255, 0.35);
+      --motion-fast:   150ms;
+      --motion-base:   220ms;
+      --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+      --container-max:            1200px;
+      --container-gutter-desktop: 48px;
+      --container-gutter-tablet:  24px;
+      --container-gutter-phone:   24px;
+    }
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { margin: 0; padding: 0; }
+body { min-width: 320px; background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 16px; line-height: 1.65; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+body.modal-open { overflow: hidden; }
+button, input, select { font: inherit; color: inherit; }
+button { -webkit-tap-highlight-color: transparent; }
+h1, h2, p { margin: 0; }
+code, pre { font-family: var(--font-mono); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.topbar { border-bottom: 1px solid var(--border); background: var(--bg); }
+.topbar-inner { width: 100%; max-width: var(--container-max); height: 64px; margin: 0 auto; padding: 0 var(--container-gutter-desktop); display: flex; align-items: center; justify-content: space-between; gap: 24px; }
+.brand { display: flex; align-items: baseline; gap: 10px; font-size: 20px; font-weight: 600; line-height: 1; letter-spacing: 0; }
+.brand span { font-size: 12px; font-weight: 500; letter-spacing: 0.02em; color: var(--muted); }
+.env { display: inline-flex; align-items: center; height: 30px; padding: 0 11px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--bg); color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1; }
+.page { width: 100%; max-width: var(--container-max); margin: 0 auto; padding: 40px var(--container-gutter-desktop) 72px; }
+.page-kicker { margin-bottom: 10px; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.4; letter-spacing: 0.03em; }
+.page-title-line { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+h1 { font-size: 28px; font-weight: 600; line-height: 1.3; letter-spacing: 0; }
+.badge { display: inline-flex; align-items: center; height: 24px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-pill); color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.page-lede { max-width: 64ch; margin-top: 10px; color: var(--muted); font-size: 16px; line-height: 1.65; text-wrap: pretty; }
+.card { border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+.access-card { overflow: hidden; margin-top: 28px; }
+.access-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; padding: 20px 24px; border-bottom: 1px solid var(--border); }
+.access-head h2,
+    .card-head h2,
+    .section-head h2 { font-size: 20px; font-weight: 600; line-height: 1.3; letter-spacing: 0; }
+.access-sub,
+    .card-head p,
+    .section-head p { margin-top: 4px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.server-meta { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 4px 10px; }
+.server-chip { display: inline-flex; align-items: center; gap: 7px; height: 26px; padding: 0 9px; border: 1px solid var(--border); border-radius: var(--radius-pill); background: var(--surface-warm); color: var(--fg); font-size: 12px; font-weight: 500; line-height: 1; white-space: nowrap; }
+.live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); flex: 0 0 auto; }
+.sync { color: var(--muted); font-size: 12px; line-height: 1.4; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.resync { min-height: 44px; padding: 0 4px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard); }
+.resync:hover { color: var(--accent-hover); }
+.resync:disabled { cursor: progress; color: var(--muted); }
+.access-facts { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); }
+.access-fact { min-width: 0; padding: 20px 24px; }
+.access-fact + .access-fact { border-left: 1px solid var(--border); }
+.fact-label-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.fact-label { color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.4; letter-spacing: 0.03em; }
+.tag { display: inline-flex; align-items: center; height: 22px; padding: 0 7px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface); color: var(--muted); font-family: var(--font-mono); font-size: 12px; line-height: 1; white-space: nowrap; }
+.fact-value-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; min-width: 0; }
+.endpoint { min-width: 0; color: var(--fg); font-size: 18px; line-height: 1.5; letter-spacing: -0.01em; overflow-wrap: anywhere; }
+.auth-code { min-width: 0; color: var(--fg); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.copy { flex: 0 0 auto; min-height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--fg); font-size: 12px; font-weight: 500; line-height: 1; cursor: pointer; transition: background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+.copy:hover { background: var(--surface); }
+.copy:disabled { opacity: 0.5; cursor: default; }
+.access-foot { padding: 11px 24px; border-top: 1px solid var(--border); background: var(--surface-warm); color: var(--muted); font-size: 12px; line-height: 1.55; }
+.section { margin-top: 36px; }
+.section-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; margin-bottom: 14px; }
+.section-count { color: var(--muted); font-size: 12px; line-height: 1.4; white-space: nowrap; }
+.client-card { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+.tablist { display: flex; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--border); overflow-x: auto; scrollbar-width: none; }
+.tablist::-webkit-scrollbar { display: none; }
+.tab { flex: 0 0 auto; height: 48px; padding: 0 14px; border: 0; border-bottom: 2px solid transparent; background: transparent; color: var(--muted); font-size: 13px; font-weight: 500; line-height: 1; white-space: nowrap; cursor: pointer; transition: color var(--motion-fast) var(--ease-standard), background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+.tab:hover { background: var(--surface); color: var(--fg); }
+.tab[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--fg); }
+.client-body { padding: 18px 24px 24px; }
+.client-note { margin-bottom: 12px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.code-shell { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.code-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; min-height: 52px; padding: 4px 8px 4px 16px; border-bottom: 1px solid var(--border); color: var(--muted); font-family: var(--font-mono); font-size: 12px; line-height: 1.4; }
+.code-head .copy { background: transparent; }
+.code-head .copy:hover { background: var(--bg); }
+.code-panel { min-height: 236px; outline-offset: -2px; }
+.code-block { margin: 0; padding: 16px; overflow-x: auto; color: var(--fg); font-size: 13px; line-height: 1.7; tab-size: 2; }
+.code-block code { white-space: pre; }
+.split { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 24px; margin-top: 36px; align-items: start; }
+.card-body { padding: 24px; }
+.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 20px; margin-bottom: 20px; }
+.hint { flex: 0 0 auto; color: var(--muted); font-size: 12px; line-height: 1.4; white-space: nowrap; }
+.form-grid { display: grid; grid-template-columns: minmax(0, 0.92fr) minmax(0, 1.08fr); gap: 20px; align-items: start; }
+.field { display: flex; flex-direction: column; gap: 8px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.field label,
+    .field-label,
+    .date-label { padding: 0; color: var(--fg); font-size: 12px; font-weight: 500; line-height: 1.4; letter-spacing: 0.02em; }
+.input { width: 100%; height: 44px; padding: 0 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); color: var(--fg); font-size: 16px; line-height: 1.4; transition: border-color var(--motion-fast) var(--ease-standard), box-shadow var(--motion-fast) var(--ease-standard); }
+.input::placeholder { color: var(--muted); opacity: 1; }
+.input:hover { border-color: var(--meta); }
+.input:focus { outline: none; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.input[aria-invalid="true"] { border-color: var(--danger); }
+.input:disabled { background: var(--surface-warm); color: var(--muted); cursor: not-allowed; }
+.radio-group { display: flex; align-items: center; flex-wrap: wrap; gap: 2px 14px; min-height: 44px; }
+.radio-option { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; color: var(--fg); font-size: 13px; line-height: 1.4; white-space: nowrap; cursor: pointer; }
+.radio-option input { width: 15px; height: 15px; margin: 0; accent-color: var(--fg); cursor: pointer; }
+.radio-option:has(input:disabled) { color: var(--muted); cursor: not-allowed; }
+.date-field { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.scope-field { min-width: 0; margin: 20px 0 0; padding: 0; border: 0; }
+.scope-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 8px; }
+.scope-option { display: flex; align-items: flex-start; gap: 10px; min-width: 0; padding: 12px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--bg); cursor: pointer; transition: background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard); }
+.scope-option:hover { background: var(--surface-warm); }
+.scope-option:has(input:checked) { background: var(--surface); }
+.scope-option:has(input:disabled) { cursor: not-allowed; }
+.scope-option input { width: 16px; height: 16px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--fg); cursor: pointer; }
+.scope-copy { display: block; min-width: 0; }
+.scope-copy code { display: block; color: var(--fg); font-size: 13px; line-height: 1.4; }
+.scope-copy span { display: block; margin-top: 2px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.scope-note { margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.55; text-wrap: pretty; }
+.form-error { display: flex; align-items: flex-start; gap: 7px; margin-top: 14px; color: var(--fg); font-size: 12px; font-weight: 500; line-height: 1.55; }
+.form-error::before { content: ""; width: 6px; height: 6px; margin-top: 6px; border-radius: 50%; background: var(--danger); flex: 0 0 auto; }
+.form-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 22px; padding-top: 18px; border-top: 1px solid var(--border); }
+.form-foot p { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.create-status { margin-top: 12px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 18px; border-radius: var(--radius-sm); font-size: 13px; font-weight: 500; line-height: 1; cursor: pointer; transition: background var(--motion-fast) var(--ease-standard), border-color var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.btn-primary { border: 1px solid var(--fg); background: var(--fg); color: var(--bg); }
+.btn-primary:hover { background: var(--fg-2); border-color: var(--fg-2); }
+.btn-secondary { border: 1px solid var(--border); background: var(--bg); color: var(--fg); }
+.btn-secondary:hover { background: var(--surface); }
+.btn:disabled { cursor: not-allowed; opacity: 0.5; }
+.btn.is-loading:disabled { opacity: 1; cursor: progress; }
+.spinner { width: 14px; height: 14px; border: 2px solid var(--spinner-track); border-top-color: var(--bg); border-radius: 50%; animation: spin 0.7s linear infinite; flex: 0 0 auto; }
+.spinner-dark { border-color: var(--border); border-top-color: var(--fg); }
+@keyframes spin {
+to { transform: rotate(360deg); }
+}
+.test-select-field { margin-bottom: 12px; }
+.test-btn { width: 100%; }
+.test-result { min-height: 64px; margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--border); }
+.result-row { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; color: var(--fg); font-size: 13px; line-height: 1.55; }
+.result-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--meta); flex: 0 0 auto; }
+.result-row.success .result-dot { background: var(--accent); }
+.result-row.error .result-dot { background: var(--danger); }
+.result-status { font-weight: 600; }
+.result-meta { color: var(--muted); font-variant-numeric: tabular-nums; }
+.result-meta code,
+    .result-meta strong { color: var(--fg); font-weight: 500; }
+.result-code { color: var(--fg); font-family: var(--font-mono); font-size: 12px; }
+.result-row.error .result-code { font-weight: 500; }
+.table-wrap { overflow: hidden; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); }
+.token-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.token-table th { padding: 11px 16px; border-bottom: 1px solid var(--border); background: var(--surface); color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.4; text-align: left; letter-spacing: 0.02em; }
+.token-table td { padding: 13px 16px; border-bottom: 1px solid var(--border); color: var(--fg); font-size: 13px; line-height: 1.5; vertical-align: middle; }
+.token-table tr:last-child td { border-bottom: 0; }
+.token-table tbody tr { transition: background var(--motion-fast) var(--ease-standard); }
+.token-table tbody tr:hover { background: var(--surface-warm); }
+.token-name { display: block; color: var(--fg); font-size: 13px; font-weight: 500; line-height: 1.45; overflow-wrap: anywhere; }
+.token-id { display: block; margin-top: 1px; color: var(--muted); font-family: var(--font-mono); font-size: 12px; line-height: 1.4; }
+.scope-list { display: flex; flex-wrap: wrap; gap: 3px 6px; }
+.scope-code { color: var(--fg); font-family: var(--font-mono); font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.scope-sep { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.status { display: inline-flex; align-items: center; gap: 6px; color: var(--fg); font-size: 12px; line-height: 1.4; white-space: nowrap; }
+.status .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--meta); flex: 0 0 auto; }
+.status.active .dot { background: var(--fg); }
+.status.revoked { color: var(--muted); }
+.row-action { min-height: 44px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1; cursor: pointer; transition: background var(--motion-fast) var(--ease-standard), color var(--motion-fast) var(--ease-standard); }
+.row-action:hover { background: var(--surface); color: var(--fg); }
+.row-new { animation: row-flash 1.8s var(--ease-standard); }
+@keyframes row-flash {
+0% { background: var(--surface); }
+100% { background: transparent; }
+}
+.page-foot { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-top: 36px; padding-top: 18px; border-top: 1px solid var(--border); color: var(--muted); font-size: 12px; line-height: 1.5; }
+.page-foot .mono { font-family: var(--font-mono); }
+.modal-backdrop { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 24px; background: var(--overlay); opacity: 0; transition: opacity var(--motion-base) var(--ease-standard); }
+.modal-backdrop.is-open { opacity: 1; }
+.modal { width: min(580px, 100%); max-height: calc(100vh - 48px); overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius-md); background: var(--bg); box-shadow: var(--shadow-modal); transform: translateY(6px) scale(0.99); transition: transform var(--motion-base) var(--ease-standard); }
+.modal-backdrop.is-open .modal { transform: none; }
+.modal-head { padding: 24px 24px 0; }
+.modal-kicker { display: block; margin-bottom: 8px; color: var(--muted); font-size: 12px; font-weight: 500; line-height: 1.4; letter-spacing: 0.04em; }
+.modal-head h2 { font-size: 20px; font-weight: 600; line-height: 1.3; }
+.modal-head p { margin-top: 6px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.modal-body { padding: 18px 24px 24px; }
+.warn { display: flex; flex-direction: column; gap: 2px; padding: 12px 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); color: var(--muted); font-size: 13px; line-height: 1.55; }
+.warn strong { color: var(--fg); font-weight: 600; }
+.secret-box { margin-top: 14px; padding: 14px; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--surface); }
+.secret-box code { display: block; color: var(--fg); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }
+.meta-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px 20px; margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }
+.meta-label { display: block; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.meta-value { display: block; margin-top: 2px; color: var(--fg); font-size: 13px; line-height: 1.5; overflow-wrap: anywhere; }
+.meta-value.mono { font-family: var(--font-mono); font-size: 12px; }
+.modal-actions { display: flex; gap: 10px; margin-top: 22px; }
+.modal-actions .btn-primary { flex: 1; }
+.modal-note { min-height: 18px; margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.5; }
+@media (prefers-reduced-motion: reduce) {
+*, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}
+@media (max-width: 980px) {
+.split { grid-template-columns: 1fr; }
+.form-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 760px) {
+.topbar-inner,
+      .page { padding-left: var(--container-gutter-tablet); padding-right: var(--container-gutter-tablet); }
+.page { padding-top: 32px; }
+.access-head { flex-direction: column; gap: 14px; }
+.server-meta { justify-content: flex-start; }
+.access-facts { grid-template-columns: 1fr; }
+.access-fact + .access-fact { border-left: 0; border-top: 1px solid var(--border); }
+.form-grid { grid-template-columns: 1fr; }
+.scope-options { grid-template-columns: 1fr; }
+.form-foot { flex-direction: column; align-items: stretch; }
+.form-foot .btn-primary { width: 100%; }
+.page-foot { flex-direction: column; align-items: flex-start; }
+.token-table { table-layout: auto; }
+.token-table thead { display: none; }
+.token-table,
+      .token-table tbody,
+      .token-table tr,
+      .token-table td { display: block; width: 100%; }
+.token-table tr { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; padding: 16px; border-bottom: 1px solid var(--border); }
+.token-table tr:last-child { border-bottom: 0; }
+.token-table td { padding: 0; border: 0; }
+.token-table td::before { content: attr(data-label); display: block; margin-bottom: 2px; color: var(--muted); font-size: 12px; line-height: 1.4; }
+.token-table td[data-label="名称"],
+      .token-table td[data-label="操作"] { grid-column: 1 / -1; }
+.row-action { padding: 0; }
+}
+@media (max-width: 560px) {
+.topbar-inner { height: 56px; }
+.brand span { display: none; }
+.page { padding-top: 28px; padding-bottom: 48px; }
+.page-kicker { margin-bottom: 8px; }
+.access-head,
+      .access-fact,
+      .client-body,
+      .card-body { padding-left: 18px; padding-right: 18px; }
+.access-foot { padding-left: 18px; padding-right: 18px; }
+.tablist { padding: 0 6px; }
+.tab { padding: 0 10px; }
+.fact-value-row { align-items: flex-start; flex-direction: column; gap: 10px; }
+.endpoint { font-size: 16px; }
+.copy { align-self: flex-start; }
+.scope-options { grid-template-columns: 1fr; }
+.meta-grid { grid-template-columns: 1fr; }
+.modal-backdrop { padding: 12px; }
+.modal { max-height: calc(100vh - 24px); }
+.modal-head,
+      .modal-body { padding-left: 18px; padding-right: 18px; }
+.modal-head { padding-top: 20px; }
+.modal-actions { flex-direction: column; }
+.modal-actions .btn { width: 100%; }
+}
+  </style>
+</head>
+<body>
+  <header class="topbar" data-od-id="app-header">
+    <div class="topbar-inner">
+      <div class="brand">有招 <span>内部演示平台</span></div>
+      <div class="env">生产环境</div>
+    </div>
+  </header>
+
+  <main class="page">
+    <div class="page-kicker">平台设置 / Token</div>
+    <div class="page-title-line">
+      <h1 data-od-id="page-title">Token</h1>
+      <span class="badge">MCP 接入</span>
+    </div>
+    <p class="page-lede">签发访问凭证，并将 Agent 接入有招的 MCP 服务。<br>MCP 接入与 API 访问共用同一套 Token 体系。</p>
+
+    <section class="card access-card" data-od-id="mcp-access-info">
+      <div class="access-head">
+        <div>
+          <h2 data-od-id="access-info-heading">接入信息</h2>
+          <p class="access-sub">所有客户端共用这一组接入信息。</p>
+        </div>
+        <div class="server-meta" aria-live="polite">
+          <span class="server-chip"><span class="live-dot" aria-hidden="true"></span><span id="server-chip-label">读取中</span></span>
+          <span class="sync" id="sync-time">同步中</span>
+          <button class="resync" type="button" id="resync" data-od-id="resync-access-info">重新同步</button>
+        </div>
+      </div>
+      <div class="access-facts">
+        <div class="access-fact">
+          <div class="fact-label-row">
+            <span class="fact-label">接入地址</span>
+            <span class="tag" id="transport">读取中</span>
+          </div>
+          <div class="fact-value-row">
+            <code class="endpoint" id="endpoint-value">正在从服务端读取…</code>
+            <button class="copy" type="button" id="copy-endpoint" data-od-id="copy-endpoint" disabled>复制</button>
+          </div>
+        </div>
+        <div class="access-fact">
+          <div class="fact-label-row">
+            <span class="fact-label">认证头</span>
+          </div>
+          <div class="fact-value-row">
+            <code class="auth-code" id="auth-value">Authorization: Bearer &lt;Token&gt;</code>
+            <button class="copy" type="button" id="copy-auth" data-od-id="copy-auth-header">复制</button>
+          </div>
+        </div>
+      </div>
+      <div class="access-foot">客户端配置自动引用此地址与认证头，不单独保存副本。</div>
+    </section>
+
+    <section class="section" data-od-id="client-connection">
+      <div class="section-head">
+        <div>
+          <h2 data-od-id="client-connection-heading">接入客户端</h2>
+          <p>选择客户端并复制配置。地址与认证头来自上方接入信息。</p>
+        </div>
+        <span class="section-count">5 种方式</span>
+      </div>
+      <div class="client-card">
+        <div class="tablist" role="tablist" aria-label="接入客户端">
+          <button class="tab" id="tab-codex" data-od-id="client-tab-codex" type="button" role="tab" aria-selected="true" aria-controls="client-code" tabindex="0">Codex CLI</button>
+          <button class="tab" id="tab-claude" data-od-id="client-tab-claude" type="button" role="tab" aria-selected="false" aria-controls="client-code" tabindex="-1">Claude Desktop</button>
+          <button class="tab" id="tab-cursor" data-od-id="client-tab-cursor" type="button" role="tab" aria-selected="false" aria-controls="client-code" tabindex="-1">Cursor</button>
+          <button class="tab" id="tab-vscode" data-od-id="client-tab-vscode" type="button" role="tab" aria-selected="false" aria-controls="client-code" tabindex="-1">VS Code</button>
+          <button class="tab" id="tab-other" data-od-id="client-tab-other" type="button" role="tab" aria-selected="false" aria-controls="client-code" tabindex="-1">其它（stdio 兜底）</button>
+        </div>
+        <div class="client-body">
+          <p class="client-note" id="client-note">在终端执行。Token 保存在环境变量中，不写入 Codex 配置。</p>
+          <div class="code-shell">
+            <div class="code-head">
+              <span id="code-label">Terminal</span>
+              <button class="copy" type="button" id="copy-code" data-od-id="copy-client-config" disabled>复制</button>
+            </div>
+            <div class="code-panel" id="client-code" role="tabpanel" aria-labelledby="tab-codex" tabindex="0">
+              <pre class="code-block"><code id="code-text">正在从服务端读取接入信息…</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <div class="split">
+      <section class="card" data-od-id="create-token-panel">
+        <div class="card-body">
+          <div class="card-head">
+            <div>
+              <h2 data-od-id="create-token-heading">创建 Token</h2>
+              <p>用于标识 Agent 或自动化流程。</p>
+            </div>
+            <span class="hint">明文仅显示一次</span>
+          </div>
+          <form id="create-form" novalidate>
+            <div class="form-grid">
+              <div class="field">
+                <label for="token-name">名称</label>
+                <input class="input" id="token-name" name="name" type="text" placeholder="例如：release-agent" maxlength="48" autocomplete="off" data-od-id="token-name-input" />
+              </div>
+              <fieldset class="field">
+                <legend class="field-label">有效期</legend>
+                <div class="radio-group">
+                  <label class="radio-option"><input type="radio" name="validity" value="never" />永不过期</label>
+                  <label class="radio-option"><input type="radio" name="validity" value="7" />7 天</label>
+                  <label class="radio-option"><input type="radio" name="validity" value="30" checked />30 天</label>
+                  <label class="radio-option"><input type="radio" name="validity" value="custom" />自定义</label>
+                </div>
+                <div class="date-field" id="custom-date-field" hidden>
+                  <label class="date-label" for="custom-date">过期日期</label>
+                  <input class="input" id="custom-date" name="custom-date" type="date" />
+                </div>
+              </fieldset>
+            </div>
+            <fieldset class="scope-field">
+              <legend class="field-label">能力 scope</legend>
+              <div class="scope-options">
+                <label class="scope-option">
+                  <input type="checkbox" name="scope" value="read:blueprint" checked data-od-id="scope-read-blueprint" />
+                  <span class="scope-copy"><code>read:blueprint</code><span>读取蓝图书、页面与组件结构。</span></span>
+                </label>
+                <label class="scope-option">
+                  <input type="checkbox" name="scope" value="publish:blueprint" data-od-id="scope-publish-blueprint" />
+                  <span class="scope-copy"><code>publish:blueprint</code><span>创建和更新蓝图书版本。</span></span>
+                </label>
+              </div>
+              <p class="scope-note">publish:blueprint 不包含读取权限，通常与 read:blueprint 一起勾选。</p>
+            </fieldset>
+            <p class="form-error" id="create-error" role="alert" hidden></p>
+            <div class="form-foot">
+              <p>创建后无法再次查看明文。</p>
+              <button class="btn btn-primary" type="submit" id="create-token-submit" data-od-id="create-token-submit">创建 Token</button>
+            </div>
+            <p class="create-status" id="create-status" role="status" hidden></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="card" data-od-id="connection-self-test">
+        <div class="card-body">
+          <div class="card-head">
+            <div>
+              <h2 data-od-id="self-test-heading">连接自检</h2>
+              <p>以选定身份发起 MCP 握手，并读取可见工具。</p>
+            </div>
+          </div>
+          <div class="field test-select-field">
+            <label for="test-token">测试身份</label>
+            <select class="input" id="test-token" data-od-id="test-token-select">
+              <option value="release-agent" data-outcome="success" data-tools="12" data-ms="218">release-agent · 有效</option>
+              <option value="blueprint-reader" data-outcome="success" data-tools="8" data-ms="194">blueprint-reader · 有效</option>
+              <option value="publish-bot" data-outcome="forbidden" data-code="FORBIDDEN" data-reason="缺少 read:blueprint，无法读取工具列表">publish-bot · 有效（仅发布）</option>
+              <option value="legacy-ci" data-outcome="token-invalid" data-code="TOKEN_INVALID" data-reason="Token 已被撤销">legacy-ci · 已撤销</option>
+            </select>
+          </div>
+          <button class="btn btn-secondary test-btn" type="button" id="test-connection" data-od-id="test-connection-submit">测试连接</button>
+          <div class="test-result" id="test-result" data-od-id="self-test-result" aria-live="polite">
+            <div class="result-row idle">
+              <span class="result-dot"></span>
+              <span class="result-status">尚未测试</span>
+              <span class="result-meta">发起握手后会显示协议版本、工具数量和延迟。</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="section" data-od-id="token-list-section">
+      <div class="section-head">
+        <div>
+          <h2 data-od-id="token-list-heading">最近使用的 Token</h2>
+          <p>MCP 与 API 访问共用此列表。</p>
+        </div>
+        <span class="section-count" id="token-count">4 个</span>
+      </div>
+      <div class="table-wrap">
+        <table class="token-table">
+          <thead>
+            <tr>
+              <th style="width: 21%;">名称</th>
+              <th style="width: 24%;">能力</th>
+              <th style="width: 17%;">绑定</th>
+              <th style="width: 10%;">状态</th>
+              <th style="width: 14%;">最近使用</th>
+              <th style="width: 14%;">操作</th>
+            </tr>
+          </thead>
+          <tbody id="token-rows">
+            <tr data-od-id="token-row-release-agent">
+              <td data-label="名称"><span class="token-name">release-agent</span><span class="token-id">tok_7f3a91</span></td>
+              <td data-label="能力"><div class="scope-list"><span class="scope-code">read:blueprint</span><span class="scope-sep">·</span><span class="scope-code">publish:blueprint</span></div></td>
+              <td data-label="绑定">Codex CLI</td>
+              <td data-label="状态"><span class="status active"><span class="dot"></span>有效</span></td>
+              <td data-label="最近使用">2 分钟前</td>
+              <td data-label="操作"><button class="row-action" type="button" data-copy-id="tok_7f3a91">复制 ID</button></td>
+            </tr>
+            <tr data-od-id="token-row-blueprint-reader">
+              <td data-label="名称"><span class="token-name">blueprint-reader</span><span class="token-id">tok_2c81d0</span></td>
+              <td data-label="能力"><div class="scope-list"><span class="scope-code">read:blueprint</span></div></td>
+              <td data-label="绑定">Cursor</td>
+              <td data-label="状态"><span class="status active"><span class="dot"></span>有效</span></td>
+              <td data-label="最近使用">昨天 16:20</td>
+              <td data-label="操作"><button class="row-action" type="button" data-copy-id="tok_2c81d0">复制 ID</button></td>
+            </tr>
+            <tr data-od-id="token-row-publish-bot">
+              <td data-label="名称"><span class="token-name">publish-bot</span><span class="token-id">tok_9ab442</span></td>
+              <td data-label="能力"><div class="scope-list"><span class="scope-code">publish:blueprint</span></div></td>
+              <td data-label="绑定">VS Code</td>
+              <td data-label="状态"><span class="status active"><span class="dot"></span>有效</span></td>
+              <td data-label="最近使用">3 天前</td>
+              <td data-label="操作"><button class="row-action" type="button" data-copy-id="tok_9ab442">复制 ID</button></td>
+            </tr>
+            <tr data-od-id="token-row-legacy-ci">
+              <td data-label="名称"><span class="token-name">legacy-ci</span><span class="token-id">tok_5e10ac</span></td>
+              <td data-label="能力"><div class="scope-list"><span class="scope-code">read:blueprint</span></div></td>
+              <td data-label="绑定">GitHub Actions</td>
+              <td data-label="状态"><span class="status revoked"><span class="dot"></span>已撤销</span></td>
+              <td data-label="最近使用">5 天前</td>
+              <td data-label="操作"><button class="row-action" type="button" data-copy-id="tok_5e10ac">复制 ID</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="page-foot">
+      <span>有招 · 内部演示平台</span>
+      <span class="mono">MCP 2025-06-18 · Streamable HTTP</span>
+    </footer>
+  </main>
+
+  <div class="modal-backdrop" id="token-modal" data-od-id="one-time-token-modal" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" aria-describedby="modal-desc">
+      <div class="modal-head">
+        <span class="modal-kicker">访问凭证</span>
+        <h2 id="modal-title">Token 已创建</h2>
+        <p id="modal-desc">关闭后无法再次查看明文。</p>
+      </div>
+      <div class="modal-body">
+        <div class="warn">
+          <strong>明文只显示这一次。</strong>
+          <span>请立即复制并存入密钥管理器。</span>
+        </div>
+        <div class="secret-box"><code id="secret-value"></code></div>
+        <div class="meta-grid">
+          <div><span class="meta-label">名称</span><span class="meta-value" id="modal-name"></span></div>
+          <div><span class="meta-label">能力</span><span class="meta-value mono" id="modal-scope"></span></div>
+          <div><span class="meta-label">有效期</span><span class="meta-value" id="modal-validity"></span></div>
+          <div><span class="meta-label">创建时间</span><span class="meta-value" id="modal-created"></span></div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" type="button" id="modal-copy" data-od-id="modal-copy-token">复制 Token</button>
+          <button class="btn btn-secondary" type="button" id="modal-done" data-od-id="modal-done">完成</button>
+        </div>
+        <p class="modal-note" id="modal-copy-status" aria-live="polite">复制 Token 后关闭。</p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      'use strict';
+
+      var $ = function (selector, root) { return (root || document).querySelector(selector); };
+      var $$ = function (selector, root) { return Array.prototype.slice.call((root || document).querySelectorAll(selector)); };
+      var wait = function (ms) { return new Promise(function (resolve) { setTimeout(resolve, ms); }); };
+
+      var serverConfig = {
+        endpoint: 'https://youzhao.florai.cn/mcp',
+        transport: 'Streamable HTTP'
+      };
+
+      var state = {
+        client: 'codex',
+        code: '',
+        token: null,
+        creating: false,
+        testing: false
+      };
+
+      var endpointEl = $('#endpoint-value');
+      var transportEl = $('#transport');
+      var syncTimeEl = $('#sync-time');
+      var chipLabelEl = $('#server-chip-label');
+      var resyncBtn = $('#resync');
+      var endpointCopyBtn = $('#copy-endpoint');
+      var authCopyBtn = $('#copy-auth');
+      var codeTextEl = $('#code-text');
+      var codeLabelEl = $('#code-label');
+      var codeNoteEl = $('#client-note');
+      var codeCopyBtn = $('#copy-code');
+      var codePanel = $('#client-code');
+      var tablist = $('.tablist');
+
+      var form = $('#create-form');
+      var nameInput = $('#token-name');
+      var dateField = $('#custom-date-field');
+      var dateInput = $('#custom-date');
+      var errorEl = $('#create-error');
+      var createBtn = $('#create-token-submit');
+      var createStatusEl = $('#create-status');
+      var scopeInputs = $$('input[name="scope"]');
+      var validityInputs = $$('input[name="validity"]');
+
+      var testSelect = $('#test-token');
+      var testBtn = $('#test-connection');
+      var testResult = $('#test-result');
+
+      var tokenRows = $('#token-rows');
+      var tokenCount = $('#token-count');
+
+      var modal = $('#token-modal');
+      var modalCopyBtn = $('#modal-copy');
+      var modalDoneBtn = $('#modal-done');
+      var modalCopyStatus = $('#modal-copy-status');
+      var secretEl = $('#secret-value');
+
+      var clients = {
+        codex: {
+          label: 'Terminal',
+          note: '在终端执行。Token 保存在环境变量中，不写入 Codex 配置。',
+          code: function (endpoint) {
+            return 'export YOUZHAO_MCP_TOKEN="<Token>"\n\ncodex mcp add youzhao \\\n  --url ' + endpoint + ' \\\n  --bearer-token-env-var YOUZHAO_MCP_TOKEN';
+          }
+        },
+        claude: {
+          label: 'Terminal',
+          note: '用于 Claude Desktop 的 MCP 启动命令，重启客户端后生效。',
+          code: function (endpoint) {
+            return 'npx -y mcp-remote ' + endpoint + ' --header "Authorization: Bearer <Token>"';
+          }
+        },
+        cursor: {
+          label: '~/.cursor/mcp.json',
+          note: '写入用户级 mcp.json，重启 Cursor 后在 MCP 设置中启用。',
+          code: function (endpoint) {
+            return '{\n  "mcpServers": {\n    "youzhao": {\n      "url": "' + endpoint + '",\n      "headers": { "Authorization": "Bearer <Token>" }\n    }\n  }\n}';
+          }
+        },
+        vscode: {
+          label: '.vscode/mcp.json',
+          note: '写入工作区配置；首次连接时会提示输入 Token。',
+          code: function (endpoint) {
+            return '{\n  "servers": {\n    "youzhao": {\n      "type": "http",\n      "url": "' + endpoint + '",\n      "headers": { "Authorization": "Bearer ${input:youzhao-token}" }\n    }\n  },\n  "inputs": [{ "id": "youzhao-token", "type": "promptString", "password": true }]\n}';
+          }
+        },
+        other: {
+          label: 'Terminal',
+          note: '适用于仅支持 stdio 的客户端；mcp-remote 在本地完成协议桥接。',
+          code: function (endpoint) {
+            return 'npx -y mcp-remote ' + endpoint + ' \\\n  --header "Authorization: Bearer <Token>"';
+          }
+        }
+      };
+
+      function formatTime(date) {
+        return date.toLocaleTimeString('zh-CN', { hour12: false, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      }
+
+      function formatDateTime(date) {
+        return date.toLocaleString('zh-CN', {
+          year: 'numeric', month: '2-digit', day: '2-digit',
+          hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        });
+      }
+
+      function localISODate(date) {
+        var local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+        return local.toISOString().slice(0, 10);
+      }
+
+      function addDays(date, days) {
+        var next = new Date(date.getTime());
+        next.setDate(next.getDate() + days);
+        return next;
+      }
+
+      async function syncAccess(first) {
+        resyncBtn.disabled = true;
+        resyncBtn.textContent = '同步中…';
+        chipLabelEl.textContent = first ? '读取中' : '同步中';
+        syncTimeEl.textContent = first ? '同步中' : '正在重新同步';
+        if (first) {
+          endpointEl.textContent = '正在从服务端读取…';
+          transportEl.textContent = '读取中';
+          codeTextEl.textContent = '正在从服务端读取接入信息…';
+        }
+        await wait(420);
+        endpointEl.textContent = serverConfig.endpoint;
+        transportEl.textContent = serverConfig.transport;
+        syncTimeEl.textContent = '同步于 ' + formatTime(new Date());
+        chipLabelEl.textContent = '来自服务端';
+        resyncBtn.disabled = false;
+        resyncBtn.textContent = '重新同步';
+        endpointCopyBtn.disabled = false;
+        codeCopyBtn.disabled = false;
+        renderClient();
+      }
+
+      function renderClient() {
+        var client = clients[state.client];
+        var activeTab = $('#tab-' + state.client);
+        codeLabelEl.textContent = client.label;
+        codeNoteEl.textContent = client.note;
+        state.code = client.code(serverConfig.endpoint);
+        codeTextEl.textContent = state.code;
+        codeCopyBtn.textContent = '复制';
+        codePanel.setAttribute('aria-labelledby', 'tab-' + state.client);
+        $$('.tab').forEach(function (tab) {
+          var selected = tab === activeTab;
+          tab.setAttribute('aria-selected', selected ? 'true' : 'false');
+          tab.tabIndex = selected ? 0 : -1;
+        });
+      }
+
+      function fallbackCopy(text) {
+        var area = document.createElement('textarea');
+        area.value = text;
+        area.setAttribute('readonly', '');
+        area.style.position = 'fixed';
+        area.style.top = '-1000px';
+        area.style.opacity = '0';
+        document.body.appendChild(area);
+        area.select();
+        var copied = false;
+        try { copied = document.execCommand('copy'); } catch (error) { copied = false; }
+        area.remove();
+        return copied;
+      }
+
+      async function copyText(text) {
+        if (!text) return false;
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(text);
+            return true;
+          }
+        } catch (error) {}
+        return fallbackCopy(text);
+      }
+
+      function flashButton(button, label) {
+        if (!button) return;
+        if (button._flashTimer) clearTimeout(button._flashTimer);
+        if (!button.dataset.label) button.dataset.label = button.textContent;
+        button.textContent = label;
+        button._flashTimer = setTimeout(function () {
+          button.textContent = button.dataset.label;
+        }, 1600);
+      }
+
+      $$('.tab').forEach(function (tab) {
+        tab.addEventListener('click', function () {
+          state.client = tab.id.replace('tab-', '');
+          renderClient();
+        });
+      });
+
+      tablist.addEventListener('keydown', function (event) {
+        if (event.key !== 'ArrowRight' && event.key !== 'ArrowLeft' && event.key !== 'Home' && event.key !== 'End') return;
+        event.preventDefault();
+        var tabs = $$('.tab');
+        var current = tabs.indexOf(document.activeElement);
+        var next = current;
+        if (event.key === 'ArrowRight') next = (current + 1) % tabs.length;
+        if (event.key === 'ArrowLeft') next = (current - 1 + tabs.length) % tabs.length;
+        if (event.key === 'Home') next = 0;
+        if (event.key === 'End') next = tabs.length - 1;
+        tabs[next].focus();
+        tabs[next].click();
+      });
+
+      endpointCopyBtn.addEventListener('click', async function () {
+        var copied = await copyText(serverConfig.endpoint);
+        flashButton(endpointCopyBtn, copied ? '已复制' : '复制失败');
+      });
+
+      authCopyBtn.addEventListener('click', async function () {
+        var copied = await copyText('Authorization: Bearer <Token>');
+        flashButton(authCopyBtn, copied ? '已复制' : '复制失败');
+      });
+
+      codeCopyBtn.addEventListener('click', async function () {
+        if (!state.code) return;
+        var copied = await copyText(state.code);
+        flashButton(codeCopyBtn, copied ? '已复制' : '复制失败');
+      });
+
+      resyncBtn.addEventListener('click', function () { syncAccess(false); });
+
+      function showError(message, target) {
+        errorEl.textContent = message;
+        errorEl.hidden = false;
+        if (target) {
+          target.setAttribute('aria-invalid', 'true');
+          target.focus();
+        }
+      }
+
+      function clearError() {
+        errorEl.hidden = true;
+        errorEl.textContent = '';
+        nameInput.removeAttribute('aria-invalid');
+        dateInput.removeAttribute('aria-invalid');
+      }
+
+      function selectedScopes() {
+        return $$('input[name="scope"]:checked').map(function (input) { return input.value; });
+      }
+
+      function selectedValidity() {
+        var value = $('input[name="validity"]:checked').value;
+        if (value === 'never') return { key: 'never', label: '永不过期' };
+        if (value === 'custom') {
+          return {
+            key: 'custom',
+            label: dateInput.value ? '至 ' + dateInput.value.replace(/-/g, '.') : '自定义'
+          };
+        }
+        return { key: value, label: value + ' 天' };
+      }
+
+      validityInputs.forEach(function (input) {
+        input.addEventListener('change', function () {
+          var custom = $('input[name="validity"]:checked').value === 'custom';
+          dateField.hidden = !custom;
+          if (custom) {
+            dateInput.min = localISODate(new Date());
+            if (!dateInput.value) dateInput.value = localISODate(addDays(new Date(), 30));
+          }
+          clearError();
+        });
+      });
+
+      [nameInput, dateInput].concat(scopeInputs).forEach(function (input) {
+        input.addEventListener('input', clearError);
+        input.addEventListener('change', clearError);
+      });
+
+      function setCreating(creating) {
+        state.creating = creating;
+        Array.prototype.forEach.call(form.elements, function (element) { element.disabled = creating; });
+        createBtn.classList.toggle('is-loading', creating);
+        if (creating) {
+          createBtn.innerHTML = '<span class="spinner" aria-hidden="true"></span>正在创建…';
+        } else {
+          createBtn.textContent = '创建 Token';
+        }
+      }
+
+      function randomHex(bytes) {
+        var data = new Uint8Array(bytes);
+        crypto.getRandomValues(data);
+        return Array.prototype.map.call(data, function (byte) { return byte.toString(16).padStart(2, '0'); }).join('');
+      }
+
+      function escapeHtml(value) {
+        return String(value).replace(/[&<>"']/g, function (character) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character];
+        });
+      }
+
+      function openTokenModal(tokenData) {
+        state.token = tokenData;
+        secretEl.textContent = tokenData.token;
+        $('#modal-name').textContent = tokenData.name;
+        $('#modal-scope').textContent = tokenData.scopes.join(', ');
+        $('#modal-validity').textContent = tokenData.validity;
+        $('#modal-created').textContent = formatDateTime(tokenData.createdAt);
+        modalCopyBtn.textContent = '复制 Token';
+        modalCopyStatus.textContent = '复制 Token 后关闭。';
+        modal.hidden = false;
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(function () { modal.classList.add('is-open'); });
+        setTimeout(function () { modalCopyBtn.focus(); }, 40);
+      }
+
+      function closeTokenModal() {
+        modal.classList.remove('is-open');
+        document.body.classList.remove('modal-open');
+        setTimeout(function () { modal.hidden = true; }, 220);
+      }
+
+      function addTokenToTest(tokenData) {
+        var option = document.createElement('option');
+        var canRead = tokenData.scopes.indexOf('read:blueprint') !== -1;
+        var canPublish = tokenData.scopes.indexOf('publish:blueprint') !== -1;
+        option.value = tokenData.id;
+        option.textContent = tokenData.name + ' · 有效';
+        option.dataset.outcome = canRead ? 'success' : 'forbidden';
+        option.dataset.tools = canPublish ? '12' : '8';
+        option.dataset.ms = canPublish ? '218' : '194';
+        option.dataset.code = 'FORBIDDEN';
+        option.dataset.reason = '缺少 read:blueprint，无法读取工具列表';
+        testSelect.insertBefore(option, testSelect.firstChild);
+        testSelect.value = tokenData.id;
+        renderTestIdle();
+      }
+
+      function addTokenToTable(tokenData) {
+        var row = document.createElement('tr');
+        row.className = 'row-new';
+        row.setAttribute('data-od-id', 'token-row-' + tokenData.id);
+        var scopes = tokenData.scopes.map(function (scope) {
+          return '<span class="scope-code">' + scope + '</span>';
+        }).join('<span class="scope-sep">·</span>');
+        row.innerHTML =
+          '<td data-label="名称"><span class="token-name">' + escapeHtml(tokenData.name) + '</span><span class="token-id">' + tokenData.id + '</span></td>' +
+          '<td data-label="能力"><div class="scope-list">' + scopes + '</div></td>' +
+          '<td data-label="绑定">未绑定</td>' +
+          '<td data-label="状态"><span class="status active"><span class="dot"></span>有效</span></td>' +
+          '<td data-label="最近使用">从未使用</td>' +
+          '<td data-label="操作"><button class="row-action" type="button" data-copy-id="' + tokenData.id + '">复制 ID</button></td>';
+        tokenRows.insertBefore(row, tokenRows.firstChild);
+        tokenCount.textContent = tokenRows.children.length + ' 个';
+      }
+
+      function finishTokenCreation() {
+        if (!state.token) return;
+        var tokenData = state.token;
+        closeTokenModal();
+        addTokenToTable(tokenData);
+        addTokenToTest(tokenData);
+        setCreating(false);
+        form.reset();
+        dateField.hidden = true;
+        clearError();
+        createStatusEl.textContent = '已创建 ' + tokenData.name + '，可在 Token 列表和连接自检中使用。';
+        createStatusEl.hidden = false;
+        state.token = null;
+        setTimeout(function () { secretEl.textContent = ''; }, 260);
+        setTimeout(function () { createBtn.focus(); }, 240);
+      }
+
+      form.addEventListener('submit', async function (event) {
+        event.preventDefault();
+        if (state.creating) return;
+        clearError();
+        createStatusEl.hidden = true;
+        var name = nameInput.value.trim();
+        var scopes = selectedScopes();
+        var validity = selectedValidity();
+        if (!name) {
+          showError('请输入 Token 名称。', nameInput);
+          return;
+        }
+        if (!scopes.length) {
+          showError('至少选择一项能力。');
+          return;
+        }
+        if (validity.key === 'custom') {
+          if (!dateInput.value) {
+            showError('请选择过期日期。', dateInput);
+            return;
+          }
+          var expiry = new Date(dateInput.value + 'T23:59:59');
+          if (isNaN(expiry.getTime()) || expiry <= new Date()) {
+            showError('过期日期需要晚于今天。', dateInput);
+            return;
+          }
+        }
+        setCreating(true);
+        await wait(1300);
+        var tokenData = {
+          name: name,
+          scopes: scopes,
+          validity: validity.label,
+          token: 'yz_mcp_' + randomHex(24),
+          id: 'tok_' + randomHex(3),
+          createdAt: new Date()
+        };
+        openTokenModal(tokenData);
+      });
+
+      modalCopyBtn.addEventListener('click', async function () {
+        if (!state.token) return;
+        var copied = await copyText(state.token.token);
+        if (copied) {
+          modalCopyBtn.textContent = '已复制';
+          modalCopyStatus.textContent = '已复制。关闭后无法再次查看。';
+        } else {
+          modalCopyStatus.textContent = '复制失败，请手动选择上方 Token。';
+        }
+      });
+
+      modalDoneBtn.addEventListener('click', finishTokenCreation);
+
+      modal.addEventListener('keydown', function (event) {
+        if (event.key !== 'Tab') return;
+        var focusable = $$('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])', modal).filter(function (element) {
+          return !element.disabled && element.offsetParent !== null;
+        });
+        if (!focusable.length) return;
+        var first = focusable[0];
+        var last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      });
+
+      function renderTestIdle() {
+        testResult.innerHTML = '<div class="result-row idle"><span class="result-dot"></span><span class="result-status">尚未测试</span><span class="result-meta">发起握手后会显示协议版本、工具数量和延迟。</span></div>';
+      }
+
+      function renderTestSuccess(tools, ms) {
+        testResult.innerHTML = '<div class="result-row success"><span class="result-dot"></span><span class="result-status">连接成功</span><span class="result-meta">协议 <code>2025-06-18</code> · 可见 <strong>' + tools + '</strong> 个工具 · ' + ms + ' ms</span></div>';
+      }
+
+      function renderTestFailure(code, reason) {
+        testResult.innerHTML = '<div class="result-row error"><span class="result-dot"></span><span class="result-status">连接失败</span><span class="result-meta"><code class="result-code">' + code + '</code> · ' + reason + '</span></div>';
+      }
+
+      async function runTest() {
+        if (state.testing) return;
+        state.testing = true;
+        testBtn.disabled = true;
+        testSelect.disabled = true;
+        testBtn.classList.add('is-loading');
+        testBtn.innerHTML = '<span class="spinner spinner-dark" aria-hidden="true"></span>测试中…';
+        testResult.innerHTML = '<div class="result-row pending"><span class="result-dot"></span><span class="result-status">正在连接</span><span class="result-meta">正在完成 MCP 握手…</span></div>';
+        var option = testSelect.options[testSelect.selectedIndex];
+        await wait(820);
+        if (!navigator.onLine) {
+          renderTestFailure('服务不可用', '网络不可达，请稍后重试');
+        } else if (option.dataset.outcome === 'forbidden') {
+          renderTestFailure('FORBIDDEN', option.dataset.reason || '权限不足');
+        } else if (option.dataset.outcome === 'token-invalid') {
+          renderTestFailure('TOKEN_INVALID', option.dataset.reason || 'Token 无效');
+        } else {
+          renderTestSuccess(option.dataset.tools || '12', option.dataset.ms || '218');
+        }
+        testBtn.disabled = false;
+        testSelect.disabled = false;
+        testBtn.classList.remove('is-loading');
+        testBtn.textContent = '测试连接';
+        state.testing = false;
+      }
+
+      testBtn.addEventListener('click', runTest);
+      testSelect.addEventListener('change', renderTestIdle);
+
+      tokenRows.addEventListener('click', async function (event) {
+        var button = event.target.closest('[data-copy-id]');
+        if (!button) return;
+        var copied = await copyText(button.dataset.copyId);
+        flashButton(button, copied ? '已复制' : '复制失败');
+      });
+
+      syncAccess(true);
+    })();
+  </script>
+</body>
+</html>

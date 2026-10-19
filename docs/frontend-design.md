@@ -96,6 +96,8 @@
 | P4 | **用户** | `/users` | O / A | 创建账号、资料、状态、密码、管理归属 |
 | P5 | **权限** | `/permissions` | O / A | 查看范围分配、管理员任命与范围、业务能力 |
 | P6 | **MCP Token** | `/tokens` | 全部 | 自助创建与管理凭证 |
+
+> **P6 实现注记（M4 后回填）**：接入说明组件 `web/src/components/tokens/McpClientSnippet.vue` 已删除，改为 `web/src/components/tokens/McpConnectPanel.vue`（页头「连接 Agent」主按钮滚动定位到 `#mcp-connect-panel`）。新面板的接入地址一律取自 `GET /api/mcp/connection-info`，**前端不得自己拼地址**（架构 §4.7.1）；Token 明文创建后直接嵌进客户端片段，并提供 `POST /api/mcp-tokens/verify` 一键自检。视觉基准取自 Open Design 项目 `mcp-connect-panel-openai-800b`，落地仍用 PrimeVue + `tokens.css`/`base.css` 类，未引入其内联样式。详见 `docs/mcp-onboarding-design.md` §3.3。
 | P7 | 嵌入进入 | `/embed/launch` | ticket 持有者 | 一次性 ticket 换取会话 |
 | P8 | 我的账号 | `/account` | 全部（含普通用户） | 本人资料、密码、我的范围（只读） |
 

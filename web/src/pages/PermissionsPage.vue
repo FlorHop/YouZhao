@@ -620,7 +620,7 @@ onMounted(async () => {
       state="error"
       title="权限数据加载失败"
       :description="loadError"
-      :on-retry="load"
+      @retry="load"
     />
 
     <template v-else>

@@ -3,8 +3,10 @@
  * 页面状态块（设计 §3）：一个组件承担空 / 加载 / 失败三态，
  * 失败态必须给出「重新加载」或明确的主操作，不用行内红字代替。
  *
- * 回调支持两种写法：`@retry="load"`（事件）或 `:on-retry="load"`（属性），
- * 两者表达的是同一件事——给用户一个出口。
+ * 回调必须写成 `@retry="load"` / `@action="fn"`。
+ * 别写 `:on-retry="load"`：Vue 会把它编译成字面量键 `on-retry` 的 vnode prop，
+ * 属性解析能取到 `onRetry`，但 `emit()` 查的是 `vnode.props.onRetry`（驼峰）——
+ * 查不到，事件静默丢失，按钮变成死键（见本文件下方注释）。
  */
 import Button from 'primevue/button';
 
@@ -33,9 +35,12 @@ withDefaults(
 const emit = defineEmits<{ retry: []; action: [] }>();
 
 /**
- * 注意：`onRetry` / `onAction` 这两个属性名就是 Vue 的 `retry` / `action`
- * 事件监听器（`:on-retry="load"` 与 `@retry="load"` 是同一件事），
- * 因此这里只 `emit`，不要再手工调用 props 里的回调——否则会调用两次。
+ * 这里只 `emit`，不再手工调用 props 里的回调，避免重复调用。
+ * 但注意 `:on-retry="load"` **不是** `@retry="load"` 的等价写法：
+ *   - `@retry="load"` 编译成 `vnode.props.onRetry`，`emit('retry')` 能找到；
+ *   - `:on-retry="load"` 编译成 `vnode.props['on-retry']`，`emit()` 找不到，
+ *     回调永远不触发（属性解析那一步会被驼峰化，所以看起来「有值」）。
+ * 需要手写 camelCase 绑定时要用 `:onRetry="load"` 或直接 `@retry`。
  */
 function retry(): void {
   emit('retry');

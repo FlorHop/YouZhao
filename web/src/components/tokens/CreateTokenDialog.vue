@@ -311,7 +311,7 @@ async function submit(): Promise<void> {
           v-else-if="usersState === 'error'"
           state="error"
           :description="usersError"
-          :on-retry="loadUsers"
+          @retry="loadUsers"
         />
         <Select
           v-else

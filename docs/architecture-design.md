@@ -792,7 +792,9 @@ can('user.create')                          // 装配页头主操作
 | 本地预览域同构 | `web/scripts/dev-preview-origin.mjs`（零依赖 `node:http`，端口 3001，只转发 `/preview`）让本地 iframe 也跨源，否则会**把预览 Cookie 的 `SameSite=None` 行为测成假的**；`PREVIEW_DOMAIN` 必须指向它 | 有真实独立域名后删除 |
 | 浏览器级冒烟 | `scripts/smoke-ui.mjs`（零依赖：Node 内置 fetch + CDP WebSocket 驱动本机 Chrome）覆盖登录 → 蓝图页渲染 → 建成员 → 授权 → 建 Token → 账号页 → 退出 → 成员登录（导航裁剪）→ 直连 403 → 设计体系约束审计（无渐变、无横向溢出、字体与强调色绑定体系、每页主按钮唯一）→ **键盘与无障碍**（Tab 遍历可达、焦点环可见、图标按钮有可读名称、对话框焦点陷阱 + Esc 关闭）→ 无控制台报错。`pnpm smoke:ui`；15/15 通过 | 保留（M6 回归复用） |
 | P7 从前端移除 | 嵌入票据 = `POST /api/embed/tickets` 返回预览 URL，产物由 api 交付（一次性票据 → 303 → 预览 Cookie），不再需要前端中间页 | 不退出 |
-| 前端测试范围 | `web` 的 vitest 只测 store / 守卫 / 工具函数（17 例，Node 环境）；页面行为由 `smoke:ui` 在真浏览器验证，不在 jsdom 里造假的 PrimeVue 渲染 | 不退出 |
+| 前端测试范围 | `web` 的 vitest 覆盖 store / 守卫 / 工具函数 / 接入面板（29 例，5 文件；`happy-dom` + **挂真实 PrimeVue 插件**——用桩组件会让 `trigger` 同时触发组件事件与根元素原生事件，回调计数翻倍）；页面级行为仍由 `smoke:ui` 在真浏览器验证 | 不退出 |
+| `:on-retry` / `:on-action` 是死键（已修） | `StateBlock.vue` 的自定义回调必须写 `@retry=` / `@action=`。写成 `:on-retry="load"` 时编译器把它放进 vnode props 的**字面量键** `on-retry`，属性解析会驼峰化成 `onRetry`（看起来「有值」），但 `emit('retry')` 查的是 `vnode.props.onRetry`（驼峰）→ 查不到、事件静默丢弃、按钮变死键。该写法曾出现在 6 处（`CreateTokenDialog.vue`、`McpConnectPanel.vue`、`BlueprintsPage.vue` ×3、`PermissionsPage.vue`、`TokensPage.vue`），只在 error/empty 态渲染，`smoke:ui` 15/15 全绿也没能发现 | 不退出；新增自定义事件组件一律用 `@event` 绑定，`StateBlock.vue` 注释已记录该坑 |
+| MCP 接入面板替换旧片段 | `web/src/components/tokens/McpClientSnippet.vue` 删除，改为 `McpConnectPanel.vue` + `client-snippets.ts`；接入地址来自 `GET /api/mcp/connection-info`（前端不拼地址），Token 明文嵌进片段并支持 `POST /api/mcp-tokens/verify` 自检；视觉基准取自 Open Design 项目 `mcp-connect-panel-openai-800b`，落地只用 PrimeVue + `tokens.css`/`base.css` | 不退出 |
 
 ---
 

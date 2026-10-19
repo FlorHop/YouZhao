@@ -25,7 +25,7 @@ import { useRouter } from 'vue-router';
 import PageHeader from '@/components/common/PageHeader.vue';
 import StateBlock from '@/components/common/StateBlock.vue';
 import CreateTokenDialog from '@/components/tokens/CreateTokenDialog.vue';
-import McpClientSnippet from '@/components/tokens/McpClientSnippet.vue';
+import McpConnectPanel from '@/components/tokens/McpConnectPanel.vue';
 import TokenCell from '@/components/tokens/TokenCell.vue';
 import TokenSecretDialog from '@/components/tokens/TokenSecretDialog.vue';
 import { ApiError } from '@/services/api';
@@ -249,6 +249,11 @@ function confirmRemove(row: TokenRow): void {
     },
   });
 }
+
+/** 「连接 Agent」主入口：面板在表格下方，点击后滚过去（不跳路由，保留当前页上下文）。 */
+function focusConnectPanel(): void {
+  document.getElementById('mcp-connect-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
 </script>
 
 <template>
@@ -258,7 +263,14 @@ function confirmRemove(row: TokenRow): void {
       lede="Token 的实际能力 = 绑定用户的平台权限 ∩ Token 自身的 scope：它只会以绑定用户的身份调用，不会获得超出该用户的能力；绑定用户被停用或降权后，Token 同步失效。"
     >
       <template #actions>
-        <Button label="创建 Token" icon="pi pi-plus" @click="createVisible = true" />
+        <Button label="连接 Agent" icon="pi pi-link" @click="focusConnectPanel" />
+        <Button
+          label="创建 Token"
+          icon="pi pi-plus"
+          severity="secondary"
+          outlined
+          @click="createVisible = true"
+        />
       </template>
     </PageHeader>
 
@@ -296,7 +308,7 @@ function confirmRemove(row: TokenRow): void {
       :state="regionState"
       :title="stateTitle"
       :description="stateDescription"
-      :on-retry="load"
+      @retry="load"
     />
 
     <DataTable
@@ -328,7 +340,12 @@ function confirmRemove(row: TokenRow): void {
       </Column>
     </DataTable>
 
-    <McpClientSnippet />
+    <McpConnectPanel
+      id="mcp-connect-panel"
+      :token-plaintext="createdToken?.token ?? null"
+      :can-create-token="true"
+      @create-token="createVisible = true"
+    />
 
     <CreateTokenDialog
       :visible="createVisible"

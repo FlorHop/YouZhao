@@ -882,7 +882,7 @@ function openPreview(card: BlueprintCardRow, version: string): void {
       v-else-if="listState === 'error'"
       state="error"
       :description="listError"
-      :on-retry="() => loadList(false)"
+      @retry="() => loadList(false)"
     />
 
     <div v-else-if="showNoScopeState" class="empty-state">
@@ -899,7 +899,7 @@ function openPreview(card: BlueprintCardRow, version: string): void {
       title="没有符合条件的蓝图"
       description="试试调整关键词、分组或状态筛选；清空筛选可以看到你能查看的全部蓝图。"
       action-label="清空筛选"
-      :on-action="clearFilters"
+      @action="clearFilters"
     />
 
     <StateBlock
@@ -908,7 +908,7 @@ function openPreview(card: BlueprintCardRow, version: string): void {
       title="还没有蓝图"
       description="创建第一个蓝图，同时发布它的首个版本；之后可以在卡片上发布新版本或调整分组。"
       action-label="新建蓝图"
-      :on-action="openCreateDialog"
+      @action="openCreateDialog"
     />
 
     <StateBlock

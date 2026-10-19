@@ -26,6 +26,8 @@
 | P6 | 工具数量在三处不一致 | `McpClientSnippet.vue` 注释写「4 读 + 4 写」、`skills/youzhao-mcp/SKILL.md` 写「5 读 / 3 写」、实际 8（4 读 + 4 写，实测只读 Token 只见 4 个读工具） | 用户按错的预期排障 |
 | P7 | 无「Token 是否真的可用」的自检 | 现状只能靠客户端报错反推 | 排障靠猜，用户体感「难度大」 |
 
+> **落地状态（第 3 步完成后回填）**：P1/P2/P3/P5/P6/P7 已随第 3 步解决——`McpClientSnippet.vue` 已删除，取而代之的 `web/src/components/tokens/McpConnectPanel.vue` 从 `GET /api/mcp/connection-info` 取真实地址（不再前端拼地址）、提供 7 类客户端片段（远端直连优先，stdio 桥作为折叠的高级项）、内联造 Token 后把明文直接嵌进片段、一键自检（`POST /api/mcp-tokens/verify`），工具数量统一为 8 = 4 读 + 4 写。P4（OAuth 发现缺失）仍未做，见 §6-2。
+
 ---
 
 ## 2. 本次已实测的事实（设计依据）
@@ -192,7 +194,7 @@ YOUZHAO_API_BASE=https://youzhao.florai.cn YOUZHAO_MCP_TOKEN=yz_mcp_… node ser
 |---|---|---|---|---|
 | 1 | 契约 `mcp/connection-info.json` + `GET /api/mcp/connection-info` + 测试 | 小 | 新增只读端点；`MCP_ENABLED=false` 时 503 | ✅ 已完成（6 用例；契约 50 schema） |
 | 2 | `POST /api/mcp-tokens/verify` + 测试（三态） | 小 | 回环 HTTP 探测；**注意不触发业务审计**；需要 3s 超时 | ✅ 已完成（11 用例；契约 52 schema） |
-| 3 | 前端 `McpConnectPanel`（替换 `McpClientSnippet.vue`）+ 内联造 Token + 自检 + 客户端分支 | 中 | 触及 Token 页与「我的账号」入口；需补 vitest | 进行中（数据层 `web/src/services/endpoints.ts` 已就位；视觉改由 Open Design 出稿：run#1 `mcp-b3f0` 已完成、run#2 `mcp-connect-panel-openai-800b` 在跑） |
+| 3 | 前端 `McpConnectPanel`（替换 `McpClientSnippet.vue`）+ 内联造 Token + 自检 + 客户端分支 | 中 | 触及 Token 页与「我的账号」入口；需补 vitest | ✅ 已完成（`web/src/components/tokens/McpConnectPanel.vue` 342 行 + `client-snippets.ts`；删除 `McpClientSnippet.vue`；`TokensPage.vue` 加「连接 Agent」主入口；vitest 新增 12 用例，web 全量 5 文件 / 29 用例全绿，typecheck + lint 干净。视觉取自 Open Design run#2 `mcp-connect-panel-openai-800b`，落地用 Vue + PrimeVue + 我们的 tokens/`base.css`，未搬其内联 CSS） |
 | 4 | `skills/youzhao-mcp/SKILL.md`、`docs/architecture-design.md` §4.7、组件注释同步 | 小 | 纯文档 | ✅ 已完成（`SKILL.md` 接入段改「远端直连优先」；`mcp-tools.md` 写工具 3→4；`mcp-server.mjs` 默认地址改部署域名；架构文档新增 §4.7.1；文档中讲「问题现象/旧站事实」的 4174 原样保留） |
 | 5 | 验证：本机 `mcp-remote` 回归 + Codex CLI 实测 + 生产复跑冒烟 | 小 | Codex 实测需真实 Token | 待做 |
 
@@ -204,5 +206,5 @@ YOUZHAO_API_BASE=https://youzhao.florai.cn YOUZHAO_MCP_TOKEN=yz_mcp_… node ser
 
 1. 自检端点是否需要保留一条**审计记录**（`mcp.verify`）？默认建议**不写**（避免噪音），仅记录请求日志。
 2. 是否本期就补 `/.well-known/oauth-protected-resource`（避免 OAuth-only 客户端停在发现失败）？建议**先实测**再定。
-3. Claude Code / Cursor / VS Code 的片段是否本期全部提供，还是先做 Codex + Claude Desktop 两条（覆盖已知的真实用户）？
-4. 页面入口位置：放在「我的账号」还是保留在「Token」页并加个「连接 Agent」主按钮？
+3. Claude Code / Cursor / VS Code 的片段是否本期全部提供，还是先做 Codex + Claude Desktop 两条（覆盖已知的真实用户）？→ **已定：本期一次给全 7 类**（Codex CLI / Claude Code / Claude Desktop / Cursor / VS Code / 通用 curl / 自建 stdio 桥）。其中 Claude Code / Cursor / VS Code 的字段名以本机实测为准，片段里已注明。
+4. 页面入口位置：放在「我的账号」还是保留在「Token」页并加个「连接 Agent」主按钮？→ **已定：保留在「Token」页**，页头新增「连接 Agent」主按钮（点击滚动定位到面板，`#mcp-connect-panel`）。
