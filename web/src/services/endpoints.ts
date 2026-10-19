@@ -16,6 +16,7 @@ import type {
   CreateMcpTokenRequest,
   CreateMcpTokenResponse,
   CreateUserRequest,
+  McpConnectionInfoResponse,
   McpTokenMutationResponse,
   PublishBlueprintVersionRequest,
   ReorderBlueprintGroupsRequest,
@@ -25,6 +26,8 @@ import type {
   UpdateMcpTokenRequest,
   UpdateMeRequest,
   ChangeOwnPasswordRequest,
+  VerifyMcpTokenRequest,
+  VerifyMcpTokenResponse,
   UsersListResponse,
 } from '@youzhao/contracts/types';
 
@@ -53,6 +56,8 @@ export type UserStatus = CurrentUser['status'];
 export type CapabilityName = CapabilityRef['capability'];
 export type TargetType = ViewGrant['targetType'];
 export type TokenScope = TokenRow['scopes'][number];
+export type McpConnectionInfo = McpConnectionInfoResponse['data'];
+export type TokenSelfCheck = VerifyMcpTokenResponse['data'];
 
 // ── 会话与本人 ─────────────────────────────────────────────────────────────
 
@@ -177,6 +182,24 @@ export function deleteToken(tokenId: string): Promise<Envelope<McpTokenMutationR
   return apiRequest<Envelope<McpTokenMutationResponse['data']>>(`/api/mcp-tokens/${tokenId}`, {
     method: 'DELETE',
   });
+}
+
+// ── MCP 接入（连接信息 + Token 自检） ──────────────────────────────────────
+
+/**
+ * 接入地址、认证方式与工具面。
+ * 地址由服务端按部署环境给出（`API_PUBLIC_BASE_URL` + `MCP_PATH`），前端不得自己拼。
+ */
+export function fetchMcpConnectionInfo(): Promise<McpConnectionInfo> {
+  return apiData<McpConnectionInfo>('/api/mcp/connection-info');
+}
+
+/**
+ * 用明文 Token 做一次真实自检：服务端环回 `initialize` + `tools/list`。
+ * 明文只在这一次请求里出现，服务端不会存储它。
+ */
+export function verifyToken(token: VerifyMcpTokenRequest['token']): Promise<TokenSelfCheck> {
+  return apiData<TokenSelfCheck>('/api/mcp-tokens/verify', { method: 'POST', json: { token } });
 }
 
 // ── 蓝图分组 ──────────────────────────────────────────────────────────────
