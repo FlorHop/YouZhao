@@ -139,18 +139,17 @@ describe('McpConnectPanel', () => {
     expect(fail.text()).toContain('重新创建');
   });
 
-  it('可创建 Token 时暴露入口并向上 emit', async () => {
+  it('可创建 Token 时只暴露一个创建入口并向上 emit', async () => {
     const wrapper = mountPanel({ canCreateToken: true });
     await flushPromises();
 
-    const create = findButton(wrapper, '创建 Token');
-    expect(create).toBeDefined();
-    await create?.trigger('click');
-    expect(wrapper.emitted('createToken')).toHaveLength(1);
+    // 页面级主色按钮全页唯一（页头的「连接 Agent」）：面板里不再放第二个主色「创建 Token」
+    expect(findButton(wrapper, '创建 Token')).toBeUndefined();
 
     const createInCheck = findButton(wrapper, '创建新 Token');
+    expect(createInCheck).toBeDefined();
     await createInCheck?.trigger('click');
-    expect(wrapper.emitted('createToken')).toHaveLength(2);
+    expect(wrapper.emitted('createToken')).toHaveLength(1);
   });
 
   it('不可创建 Token 时不出现任何创建入口', async () => {

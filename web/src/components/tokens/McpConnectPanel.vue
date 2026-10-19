@@ -159,15 +159,10 @@ onMounted(loadInfo);
 
 <template>
   <section class="section connect-panel">
+    <!-- 页面级主色按钮全页只留一个（页头的「连接 Agent」）；
+         这里不再放第二个「创建 Token」，避免与页头动作重复、也避免同页两个主色按钮。 -->
     <div class="section-head connect-head">
       <h2 class="section-title">连接 Agent</h2>
-      <Button
-        v-if="props.canCreateToken"
-        label="创建 Token"
-        icon="pi pi-plus"
-        size="small"
-        @click="emit('createToken')"
-      />
     </div>
 
     <p class="caption connect-lede">
