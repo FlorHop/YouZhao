@@ -85,6 +85,7 @@ export type Action =
   | 'token.create'
   | 'token.disable'
   | 'token.delete'
+  | 'token.verify'
   // 分组与蓝图
   | 'group.create'
   | 'group.archive'

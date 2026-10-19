@@ -17,6 +17,7 @@ import type { AppConfig } from '../config.js';
 import type { Db } from '../db/types.js';
 import { AppError } from '../domain/errors.js';
 import { authenticateMcpToken, bearerFromHeader, buildMcpContext, touchMcpToken } from './auth.js';
+import { normalizeMcpPath } from './connection.js';
 import { buildYouzhaoMcpServer, requiredScopeForTool } from './tools.js';
 
 export interface McpRouteDeps {
@@ -30,7 +31,7 @@ export function registerMcpRoutes(app: FastifyInstance, deps: McpRouteDeps): voi
   if (!config.mcp.enabled) return;
 
   app.all(
-    mcpPath(config),
+    normalizeMcpPath(config.mcp.path),
     {
       bodyLimit: config.mcp.maxBodyBytes,
       // 按 Token 维度限流（同一 Token 共享配额；无/坏 Token 时按 IP，401 之前的尝试也计入）。
@@ -86,11 +87,6 @@ export function registerMcpRoutes(app: FastifyInstance, deps: McpRouteDeps): voi
       await touchMcpToken(db, identity.tokenId);
     },
   );
-}
-
-/** `MCP_PATH` 允许写成不带前导斜杠的形式，这里统一补齐。 */
-function mcpPath(config: AppConfig): string {
-  return config.mcp.path.startsWith('/') ? config.mcp.path : `/${config.mcp.path}`;
 }
 
 /**

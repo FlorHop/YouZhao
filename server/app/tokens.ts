@@ -16,14 +16,17 @@ import type {
   McpTokenMutationResponse,
   TokensListResponse,
   UpdateMcpTokenRequest,
+  VerifyMcpTokenRequest,
+  VerifyMcpTokenResponse,
 } from '@youzhao/contracts/types';
 import { writeAudit } from '../audit/audit.js';
 import type { Db } from '../db/types.js';
 import type { RequestContext, Resource, TokenScope } from '../domain/entities.js';
 import { AppError, isAppError } from '../domain/errors.js';
 import { newId } from '../domain/ids.js';
-import { buildMcpTokenMaterial } from '../domain/mcp-token.js';
+import { buildMcpTokenMaterial, hashMcpToken, parseMcpToken, tokenHashMatches } from '../domain/mcp-token.js';
 import { assertAuthorized } from '../domain/policy.js';
+import type { McpTokenProbe } from '../mcp/verify.js';
 import { DELETED_GRANTER_LABEL } from './users.js';
 
 /** 列表项视图（对齐契约 `tokens/list.json` 的 `McpTokenSummary`）。 */
@@ -332,5 +335,61 @@ export async function deleteMcpToken(
     const summary = await summarizeRow(db, row);
     await db.deleteFrom('mcp_tokens').where('id', '=', tokenId).execute();
     return summary;
+  });
+}
+
+// ────────────────────────────── 连接自检 ──────────────────────────────
+
+/**
+ * 自检一个 Token（`POST /api/mcp-tokens/verify`，docs/mcp-onboarding-design.md §3.2）。
+ *
+ * 为什么收明文：库里只落 `token_hash`（sha256），服务端无法反推已创建 Token 的明文，
+ * 因此只能由调用方把明文交回来做一次真实环回调用。
+ *
+ * 判权动作 `token.verify` 与启停/删除同一分支：所有者，或本人创建，或绑定到本人。
+ * 探针由路由注入（`server/mcp/verify.ts`）：用例层只依赖函数签名，便于单测替身。
+ */
+export async function verifyMcpToken(
+  db: Db,
+  context: RequestContext,
+  input: VerifyMcpTokenRequest,
+  probe: McpTokenProbe,
+  audit: TokenAudit = NO_AUDIT,
+): Promise<VerifyMcpTokenResponse['data']> {
+  const target: AuditTarget = { targetType: 'token', targetId: null };
+
+  return await audited(db, context, 'token.verify', target, audit, async () => {
+    const parsed = parseMcpToken(input.token);
+    if (parsed === null) throw new AppError('TOKEN_INVALID', '令牌格式不正确');
+
+    const row = await readTokenRow(db, parsed.tokenId);
+    if (row === null) throw new AppError('TOKEN_INVALID', '令牌不存在或已被删除');
+    if (!tokenHashMatches(row.token_hash, hashMcpToken(input.token))) {
+      throw new AppError('TOKEN_INVALID', '令牌校验失败');
+    }
+    if (row.status !== 'active') throw new AppError('TOKEN_INVALID', '令牌已停用');
+    if (row.expires_at !== null && row.expires_at.getTime() <= Date.now()) {
+      throw new AppError('TOKEN_INVALID', '令牌已过期');
+    }
+
+    target.targetId = row.id;
+    assertAuthorized(context, 'token.verify', tokenResource(row));
+
+    const outcome = await probe(input.token);
+    return {
+      ok: true,
+      tokenId: row.id,
+      tokenPrefix: row.token_prefix,
+      scopes: [...row.scopes] as TokenScope[],
+      serverInfo: outcome.serverInfo,
+      protocolVersion: outcome.protocolVersion,
+      toolCount: outcome.tools.length,
+      tools: outcome.tools.map((tool) => ({
+        name: tool.name,
+        title: tool.title,
+        scope: tool.scope,
+      })),
+      latencyMs: outcome.latencyMs,
+    };
   });
 }

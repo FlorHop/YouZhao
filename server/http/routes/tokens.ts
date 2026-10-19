@@ -12,21 +12,31 @@ import {
   tokensListSchema,
   tokensMutationSchema,
   tokensUpdateSchema,
+  tokensVerifyResponseSchema,
+  tokensVerifySchema,
 } from '@youzhao/contracts/schemas';
-import type { CreateMcpTokenRequest, UpdateMcpTokenRequest } from '@youzhao/contracts/types';
+import type {
+  CreateMcpTokenRequest,
+  UpdateMcpTokenRequest,
+  VerifyMcpTokenRequest,
+} from '@youzhao/contracts/types';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import {
   createMcpToken,
   deleteMcpToken,
   listMcpTokens,
   updateMcpToken,
+  verifyMcpToken,
 } from '../../app/tokens.js';
 import type { TokenAudit } from '../../app/tokens.js';
+import type { AppConfig } from '../../config.js';
 import type { Db } from '../../db/types.js';
+import { createMcpTokenProbe } from '../../mcp/verify.js';
 import { requireContext, requestIp } from '../plugins/request-context.js';
 
 export interface TokenRouteDeps {
   readonly db: Db;
+  readonly config: AppConfig;
 }
 
 const idParamsSchema = {
@@ -54,6 +64,9 @@ function auditOf(request: FastifyRequest): TokenAudit {
 }
 
 export function registerTokenRoutes(app: FastifyInstance, deps: TokenRouteDeps): void {
+  // 探针绑定本进程实际监听地址；未监听时调用即 503（单测可直接 inject，只覆盖 503 分支）。
+  const probe = createMcpTokenProbe({ server: app, config: deps.config });
+
   // 列表：所有者看全平台；其他人只看自己创建或绑定给自己的 Token。
   app.get(
     '/api/mcp-tokens',
@@ -87,6 +100,24 @@ export function registerTokenRoutes(app: FastifyInstance, deps: TokenRouteDeps):
         auditOf(request),
       );
       reply.code(201);
+      return { data, meta: { requestId: String(request.id) } };
+    },
+  );
+
+  // 自检：拿明文 Token 对本进程 /mcp 走一次真实环回（legacy initialize + tools/list），
+  // 只读、不调 tools/call ⇒ 不写业务审计、无业务副作用。
+  app.post(
+    '/api/mcp-tokens/verify',
+    { schema: { body: tokensVerifySchema, response: { 200: tokensVerifyResponseSchema } } },
+    async (request) => {
+      const context = await requireContext(request, deps);
+      const data = await verifyMcpToken(
+        deps.db,
+        context,
+        request.body as VerifyMcpTokenRequest,
+        probe,
+        auditOf(request),
+      );
       return { data, meta: { requestId: String(request.id) } };
     },
   );

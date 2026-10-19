@@ -19,6 +19,7 @@ import {
   blueprintsUpdateSchema,
   commonErrorSchema,
   embedTicketSchema,
+  mcpConnectionInfoSchema,
   mcpCoverBlueprintVersionOutputSchema,
   mcpCoverBlueprintVersionSchema,
   mcpCreateBlueprintGroupOutputSchema,
@@ -45,6 +46,8 @@ import {
   tokensListSchema,
   tokensMutationSchema,
   tokensUpdateSchema,
+  tokensVerifyResponseSchema,
+  tokensVerifySchema,
   usersCapabilitiesSchema,
   usersCreateSchema,
   usersGrantsChangeSchema,
@@ -70,6 +73,7 @@ export type PublishBlueprintVersionRequest = FromSchema<typeof blueprintsPublish
 export type UpdateBlueprintRequest = FromSchema<typeof blueprintsUpdateSchema>;
 export type ErrorResponse = FromSchema<typeof commonErrorSchema>;
 export type EmbedTicketRequest = FromSchema<typeof embedTicketSchema>;
+export type McpConnectionInfoResponse = FromSchema<typeof mcpConnectionInfoSchema>;
 export type McpCoverBlueprintVersionOutput = FromSchema<typeof mcpCoverBlueprintVersionOutputSchema>;
 export type McpCoverBlueprintVersionInput = FromSchema<typeof mcpCoverBlueprintVersionSchema>;
 export type McpCreateBlueprintGroupOutput = FromSchema<typeof mcpCreateBlueprintGroupOutputSchema>;
@@ -96,6 +100,8 @@ export type CreateMcpTokenRequest = FromSchema<typeof tokensCreateSchema>;
 export type TokensListResponse = FromSchema<typeof tokensListSchema>;
 export type McpTokenMutationResponse = FromSchema<typeof tokensMutationSchema>;
 export type UpdateMcpTokenRequest = FromSchema<typeof tokensUpdateSchema>;
+export type VerifyMcpTokenResponse = FromSchema<typeof tokensVerifyResponseSchema>;
+export type VerifyMcpTokenRequest = FromSchema<typeof tokensVerifySchema>;
 export type SetUserCapabilitiesRequest = FromSchema<typeof usersCapabilitiesSchema>;
 export type CreateUserRequest = FromSchema<typeof usersCreateSchema>;
 export type UserGrantsChangeRequest = FromSchema<typeof usersGrantsChangeSchema>;

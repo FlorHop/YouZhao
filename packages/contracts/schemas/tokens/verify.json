@@ -1,0 +1,16 @@
+{
+  "$id": "tokens/verify",
+  "title": "VerifyMcpTokenRequest",
+  "description": "POST /api/mcp-tokens/verify 请求体：自检一个 MCP Token 是否可用；明文由客户端提交，库里只存哈希、服务端无法反推",
+  "type": "object",
+  "properties": {
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 300,
+      "description": "创建时展示过一次的明文 Token（yz_mcp_<tokenId>_<secret>）"
+    }
+  },
+  "required": ["token"],
+  "additionalProperties": false
+}

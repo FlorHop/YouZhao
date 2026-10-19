@@ -20,6 +20,7 @@
 | `schemas/blueprints/update.json` | `UpdateBlueprintRequest` | `blueprintsUpdateSchema` |
 | `schemas/common/error.json` | `ErrorResponse` | `commonErrorSchema` |
 | `schemas/embed/ticket.json` | `EmbedTicketRequest` | `embedTicketSchema` |
+| `schemas/mcp/connection-info.json` | `McpConnectionInfoResponse` | `mcpConnectionInfoSchema` |
 | `schemas/mcp/cover-blueprint-version-output.json` | `McpCoverBlueprintVersionOutput` | `mcpCoverBlueprintVersionOutputSchema` |
 | `schemas/mcp/cover-blueprint-version.json` | `McpCoverBlueprintVersionInput` | `mcpCoverBlueprintVersionSchema` |
 | `schemas/mcp/create-blueprint-group-output.json` | `McpCreateBlueprintGroupOutput` | `mcpCreateBlueprintGroupOutputSchema` |
@@ -46,6 +47,8 @@
 | `schemas/tokens/list.json` | `TokensListResponse` | `tokensListSchema` |
 | `schemas/tokens/mutation.json` | `McpTokenMutationResponse` | `tokensMutationSchema` |
 | `schemas/tokens/update.json` | `UpdateMcpTokenRequest` | `tokensUpdateSchema` |
+| `schemas/tokens/verify-response.json` | `VerifyMcpTokenResponse` | `tokensVerifyResponseSchema` |
+| `schemas/tokens/verify.json` | `VerifyMcpTokenRequest` | `tokensVerifySchema` |
 | `schemas/users/capabilities.json` | `SetUserCapabilitiesRequest` | `usersCapabilitiesSchema` |
 | `schemas/users/create.json` | `CreateUserRequest` | `usersCreateSchema` |
 | `schemas/users/grants-change.json` | `UserGrantsChangeRequest` | `usersGrantsChangeSchema` |

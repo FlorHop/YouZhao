@@ -150,7 +150,8 @@ function judge(
       return allow();
     }
     case 'token.disable':
-    case 'token.delete': {
+    case 'token.delete':
+    case 'token.verify': {
       if (resource.kind !== 'token') return deny('INTERNAL_ERROR', '策略调用缺少 Token 信息');
       if (ctx.identity === 'owner') return allow();
       if (resource.boundUserId === ctx.userId || resource.createdByUserId === ctx.userId) {

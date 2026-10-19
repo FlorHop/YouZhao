@@ -1366,6 +1366,160 @@ export const embedTicketSchema = {
     "additionalProperties": false
   } as const satisfies JsonSchema;
 
+/** McpConnectionInfoResponse — schemas/mcp/connection-info.json */
+export const mcpConnectionInfoSchema = {
+    "$id": "mcp/connection-info",
+    "title": "McpConnectionInfoResponse",
+    "description": "MCP 接入向导所需的连接事实（docs/mcp-onboarding-design.md §3.1）。客户端片段由这些事实生成，前端不再硬编码服务地址。",
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "服务端是否启用了 MCP（MCP_ENABLED）；false 时本接口返回 503"
+          },
+          "httpUrl": {
+            "type": "string",
+            "description": "客户端应填的完整 MCP 地址（API_PUBLIC_BASE_URL 的 origin + MCP_PATH）"
+          },
+          "path": {
+            "type": "string",
+            "description": "MCP 路径，带前导斜杠"
+          },
+          "transport": {
+            "type": "string",
+            "enum": [
+              "streamable-http"
+            ]
+          },
+          "authHeader": {
+            "type": "string"
+          },
+          "authScheme": {
+            "type": "string",
+            "enum": [
+              "Bearer"
+            ]
+          },
+          "protocol": {
+            "type": "object",
+            "properties": {
+              "negotiatedBy": {
+                "type": "string",
+                "enum": [
+                  "client-initialize"
+                ],
+                "description": "协议版本由客户端 initialize 协商，接入方无需手动指定"
+              },
+              "modernEra": {
+                "type": "boolean",
+                "description": "支持 2026-07-28 及以后的 stateless envelope 时代"
+              },
+              "legacyEra": {
+                "type": "boolean",
+                "description": "支持 initialize 时代（旧客户端，含 HTTP+SSE 风格响应）"
+              }
+            },
+            "required": [
+              "negotiatedBy",
+              "modernEra",
+              "legacyEra"
+            ],
+            "additionalProperties": false
+          },
+          "oauth": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean"
+              },
+              "note": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "enabled",
+              "note"
+            ],
+            "additionalProperties": false
+          },
+          "tools": {
+            "type": "object",
+            "properties": {
+              "total": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "read": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "write": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": [
+              "total",
+              "read",
+              "write"
+            ],
+            "additionalProperties": false,
+            "description": "工具口径的唯一来源（§3.5 P6：此前组件/技能文档/实际数量三处不一致）"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read:blueprint",
+                "publish:blueprint"
+              ]
+            },
+            "description": "可用 scope 取值"
+          },
+          "tokenPagePath": {
+            "type": "string",
+            "description": "前端创建/管理 Token 的页面路径"
+          }
+        },
+        "required": [
+          "enabled",
+          "httpUrl",
+          "path",
+          "transport",
+          "authHeader",
+          "authScheme",
+          "protocol",
+          "oauth",
+          "tools",
+          "scopes",
+          "tokenPagePath"
+        ],
+        "additionalProperties": false
+      },
+      "meta": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "data",
+      "meta"
+    ],
+    "additionalProperties": false
+  } as const satisfies JsonSchema;
+
 /** McpCoverBlueprintVersionOutput — schemas/mcp/cover-blueprint-version-output.json */
 export const mcpCoverBlueprintVersionOutputSchema = {
     "$id": "mcp/cover-blueprint-version-output",
@@ -3561,6 +3715,150 @@ export const tokensUpdateSchema = {
         "description": "启停：disabled 后该 Token 立即不可用，可再置回 active"
       }
     },
+    "additionalProperties": false
+  } as const satisfies JsonSchema;
+
+/** VerifyMcpTokenResponse — schemas/tokens/verify-response.json */
+export const tokensVerifyResponseSchema = {
+    "$id": "tokens/verify-response",
+    "title": "VerifyMcpTokenResponse",
+    "description": "POST /api/mcp-tokens/verify 响应：环回调用本进程 /mcp 的 initialize + tools/list 得到的自检结果",
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "object",
+        "description": "自检结果（失败时走错误信封，因此成功响应里 ok 恒为 true）",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "tokenId": {
+            "type": "string"
+          },
+          "tokenPrefix": {
+            "type": "string",
+            "description": "展示用前缀，与 Token 列表一致"
+          },
+          "scopes": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "read:blueprint",
+                "publish:blueprint"
+              ]
+            }
+          },
+          "serverInfo": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "version"
+            ],
+            "additionalProperties": false
+          },
+          "protocolVersion": {
+            "type": "string",
+            "description": "握手（legacy）时代协商出的协议版本"
+          },
+          "toolCount": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "tools": {
+            "type": "array",
+            "description": "该 Token 的 scope 过滤后，客户端实际会看到的工具",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "scope": {
+                  "type": "string",
+                  "enum": [
+                    "read:blueprint",
+                    "publish:blueprint"
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "title",
+                "scope"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "latencyMs": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "required": [
+          "ok",
+          "tokenId",
+          "tokenPrefix",
+          "scopes",
+          "serverInfo",
+          "protocolVersion",
+          "toolCount",
+          "tools",
+          "latencyMs"
+        ],
+        "additionalProperties": false
+      },
+      "meta": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "data",
+      "meta"
+    ],
+    "additionalProperties": false
+  } as const satisfies JsonSchema;
+
+/** VerifyMcpTokenRequest — schemas/tokens/verify.json */
+export const tokensVerifySchema = {
+    "$id": "tokens/verify",
+    "title": "VerifyMcpTokenRequest",
+    "description": "POST /api/mcp-tokens/verify 请求体：自检一个 MCP Token 是否可用；明文由客户端提交，库里只存哈希、服务端无法反推",
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300,
+        "description": "创建时展示过一次的明文 Token（yz_mcp_<tokenId>_<secret>）"
+      }
+    },
+    "required": [
+      "token"
+    ],
     "additionalProperties": false
   } as const satisfies JsonSchema;
 

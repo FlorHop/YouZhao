@@ -15,6 +15,7 @@ export const ERROR_CODES = [
   // 401
   'UNAUTHENTICATED',
   'SESSION_EXPIRED',
+  'TOKEN_INVALID',
   // 403
   'FORBIDDEN',
   'SELF_MANAGE_DENIED',
@@ -43,6 +44,7 @@ export const ERROR_CODES = [
   'RATE_LIMITED',
   // 500 / 503
   'SERVICE_UNAVAILABLE',
+  'MCP_DISABLED',
   'PUBLISH_FAILED',
   'INTERNAL_ERROR',
   'CONFIG_INVALID',
@@ -56,6 +58,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   INVALID_ARTIFACT: 400,
   UNAUTHENTICATED: 401,
   SESSION_EXPIRED: 401,
+  TOKEN_INVALID: 401,
   FORBIDDEN: 403,
   SELF_MANAGE_DENIED: 403,
   PEER_MANAGE_DENIED: 403,
@@ -79,6 +82,7 @@ export const ERROR_STATUS: Record<ErrorCode, number> = {
   PAYLOAD_TOO_LARGE: 413,
   RATE_LIMITED: 429,
   SERVICE_UNAVAILABLE: 503,
+  MCP_DISABLED: 503,
   PUBLISH_FAILED: 500,
   INTERNAL_ERROR: 500,
   CONFIG_INVALID: 500,
@@ -89,6 +93,7 @@ const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   ARTIFACT_INVALID: '上传的产物包不合法',
   UNAUTHENTICATED: '请先登录',
   SESSION_EXPIRED: '登录状态已过期，请重新登录',
+  TOKEN_INVALID: '令牌无效、已停用或已过期',
   FORBIDDEN: '当前账号没有执行该操作的权限',
   SELF_MANAGE_DENIED: '不能通过用户管理接口管理自己的账号，请使用「我的账号」',
   PEER_MANAGE_DENIED: '不能管理与你同级或更高级别的账号',
@@ -108,6 +113,7 @@ const DEFAULT_MESSAGES: Partial<Record<ErrorCode, string>> = {
   PAYLOAD_TOO_LARGE: '内容超出体积上限',
   RATE_LIMITED: '操作过于频繁，请稍后再试',
   SERVICE_UNAVAILABLE: '服务暂时不可用',
+  MCP_DISABLED: '未开启 MCP 接入（MCP_ENABLED=false）',
   INTERNAL_ERROR: '服务器内部错误',
   CONFIG_INVALID: '服务配置不合法，已拒绝启动',
 };

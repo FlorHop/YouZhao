@@ -21,6 +21,7 @@ import { registerBlueprintGroupRoutes } from './routes/blueprint-groups.js';
 import { registerBlueprintRoutes } from './routes/blueprints.js';
 import { registerEmbedRoutes } from './routes/embed.js';
 import { registerHealthRoutes } from './routes/health.js';
+import { registerMcpConnectionRoutes } from './routes/mcp-connection.js';
 import { registerMeRoutes } from './routes/me.js';
 import { registerPreviewRoutes } from './routes/preview.js';
 import { registerTokenRoutes } from './routes/tokens.js';
@@ -89,13 +90,15 @@ export function buildServer(deps: ServerDependencies): FastifyInstance {
   registerMeRoutes(app, { db });
   registerUserRoutes(app, { db });
   // MCP Token 管理：创建/停用/删除；明文只在创建响应里出现一次
-  registerTokenRoutes(app, { db });
+  registerTokenRoutes(app, { db, config });
   // 蓝图与分组：上传走 multipart，可见性一律经 domain/scopes 的上下文入口判定
   registerBlueprintRoutes(app, { db, config });
   registerBlueprintGroupRoutes(app, { db });
   // 预览域交付 + 嵌入票据：都不走 Cookie 会话里的业务授权，由用例层各自判定
   registerPreviewRoutes(app, { db, config });
   registerEmbedRoutes(app, { db, config });
+  // 接入信息：把「Token 片段该填哪个地址」交给服务端推导，前端不再硬编码 localhost
+  registerMcpConnectionRoutes(app, { db, config });
   // MCP：官方 SDK 的 Streamable HTTP 挂同一应用；Bearer 令牌鉴权 + scope 闸门。
   // 单独作用域：限流插件按路由挂载（global:false），MCP 的额度与浏览器会话不同、且按 Token 维度计数。
   void app.register(async (scope) => {

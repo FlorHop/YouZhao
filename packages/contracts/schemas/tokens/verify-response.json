@@ -1,0 +1,101 @@
+{
+  "$id": "tokens/verify-response",
+  "title": "VerifyMcpTokenResponse",
+  "description": "POST /api/mcp-tokens/verify 响应：环回调用本进程 /mcp 的 initialize + tools/list 得到的自检结果",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "description": "自检结果（失败时走错误信封，因此成功响应里 ok 恒为 true）",
+      "properties": {
+        "ok": {
+          "type": "boolean"
+        },
+        "tokenId": {
+          "type": "string"
+        },
+        "tokenPrefix": {
+          "type": "string",
+          "description": "展示用前缀，与 Token 列表一致"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["read:blueprint", "publish:blueprint"]
+          }
+        },
+        "serverInfo": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "version": {
+              "type": "string"
+            }
+          },
+          "required": ["name", "version"],
+          "additionalProperties": false
+        },
+        "protocolVersion": {
+          "type": "string",
+          "description": "握手（legacy）时代协商出的协议版本"
+        },
+        "toolCount": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "tools": {
+          "type": "array",
+          "description": "该 Token 的 scope 过滤后，客户端实际会看到的工具",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "title": {
+                "type": ["string", "null"]
+              },
+              "scope": {
+                "type": "string",
+                "enum": ["read:blueprint", "publish:blueprint"]
+              }
+            },
+            "required": ["name", "title", "scope"],
+            "additionalProperties": false
+          }
+        },
+        "latencyMs": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "ok",
+        "tokenId",
+        "tokenPrefix",
+        "scopes",
+        "serverInfo",
+        "protocolVersion",
+        "toolCount",
+        "tools",
+        "latencyMs"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        }
+      },
+      "required": ["requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

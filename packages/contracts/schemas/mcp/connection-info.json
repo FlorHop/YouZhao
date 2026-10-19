@@ -1,0 +1,127 @@
+{
+  "$id": "mcp/connection-info",
+  "title": "McpConnectionInfoResponse",
+  "description": "MCP 接入向导所需的连接事实（docs/mcp-onboarding-design.md §3.1）。客户端片段由这些事实生成，前端不再硬编码服务地址。",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "服务端是否启用了 MCP（MCP_ENABLED）；false 时本接口返回 503"
+        },
+        "httpUrl": {
+          "type": "string",
+          "description": "客户端应填的完整 MCP 地址（API_PUBLIC_BASE_URL 的 origin + MCP_PATH）"
+        },
+        "path": {
+          "type": "string",
+          "description": "MCP 路径，带前导斜杠"
+        },
+        "transport": {
+          "type": "string",
+          "enum": ["streamable-http"]
+        },
+        "authHeader": {
+          "type": "string"
+        },
+        "authScheme": {
+          "type": "string",
+          "enum": ["Bearer"]
+        },
+        "protocol": {
+          "type": "object",
+          "properties": {
+            "negotiatedBy": {
+              "type": "string",
+              "enum": ["client-initialize"],
+              "description": "协议版本由客户端 initialize 协商，接入方无需手动指定"
+            },
+            "modernEra": {
+              "type": "boolean",
+              "description": "支持 2026-07-28 及以后的 stateless envelope 时代"
+            },
+            "legacyEra": {
+              "type": "boolean",
+              "description": "支持 initialize 时代（旧客户端，含 HTTP+SSE 风格响应）"
+            }
+          },
+          "required": ["negotiatedBy", "modernEra", "legacyEra"],
+          "additionalProperties": false
+        },
+        "oauth": {
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": ["enabled", "note"],
+          "additionalProperties": false
+        },
+        "tools": {
+          "type": "object",
+          "properties": {
+            "total": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "write": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["total", "read", "write"],
+          "additionalProperties": false,
+          "description": "工具口径的唯一来源（§3.5 P6：此前组件/技能文档/实际数量三处不一致）"
+        },
+        "scopes": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["read:blueprint", "publish:blueprint"]
+          },
+          "description": "可用 scope 取值"
+        },
+        "tokenPagePath": {
+          "type": "string",
+          "description": "前端创建/管理 Token 的页面路径"
+        }
+      },
+      "required": [
+        "enabled",
+        "httpUrl",
+        "path",
+        "transport",
+        "authHeader",
+        "authScheme",
+        "protocol",
+        "oauth",
+        "tools",
+        "scopes",
+        "tokenPagePath"
+      ],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": {
+          "type": "string"
+        }
+      },
+      "required": ["requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}
