@@ -4,6 +4,8 @@
 
 命名约定：产品统一称为“蓝图”；历史 API 字段中的 `demoId` 可在兼容期继续读取，新接口和新部署路径优先使用 `blueprintId`。
 
+> **实机部署注记（2026-10-19）**：本机生产环境（阿里云 ECS `8.136.181.191`）实际采用**原生安装**形态：PostgreSQL 16 + Node 24 + systemd（`youzhao-api.service`）+ nginx，而非本文档描述的 Docker Compose。原因：该机 1.6 GiB 内存且无 swap，且 80/443 端口已被现有服务占用。`deploy/` 下的容器方案保留为标准/可选形态。实机事实（安装步骤、路径、`/etc/youzhao/api.env`、域名与预览域、frp 拓扑、切流过程与授权一致性修正）见 `docs/architecture-design.md` §8.5 与 §9.1。
+
 ## 1. 部署目标
 
 单机生产版面向小团队、内网私有化、售前演示和轻量生产场景。
