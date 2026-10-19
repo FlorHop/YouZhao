@@ -442,8 +442,10 @@ async function main() {
         const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
         if (accent.toLowerCase() !== '#10a37f') problems.push('强调色偏离体系：' + accent);
         // 主按钮：每个页面不超过一个主色按钮（页面级动作唯一）
+        // 对话框内的按钮属于独立作用域（对话框自带标题与操作区），不计入页面级动作
         const primaries = all.filter((node) => {
           if (!node.classList.contains('p-button')) return false;
+          if (node.closest('[role="dialog"], .p-dialog') !== null) return false;
           const bg = getComputedStyle(node).backgroundColor;
           return bg === 'rgb(16, 163, 127)';
         });

@@ -218,6 +218,7 @@ onMounted(loadInfo);
             label="检测连接"
             icon="pi pi-bolt"
             size="small"
+            outlined
             :loading="checkState === 'running'"
             @click="runCheck"
           />
