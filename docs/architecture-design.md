@@ -946,7 +946,7 @@ can('user.create')                          // 装配页头主操作
 | M5 部署与数据迁移 | docker compose、install/upgrade/backup/restore、**预览独立域名**、`app_state` JSON → 关系表迁移脚本、产物迁移 | 单机一键部署通过；旧数据迁移后权限结果与迁移前**显式对照**（含已知缺陷的修正说明）；**直接切换到新接口，不保留并行旧接口**（Q7） |
 | M6 验收 | 安全回归（§7 全表复测）、性能（列表 1000 条分页）、无障碍与键盘操作 | 全部通过并留档 |
 
-**当前进度**：M0–M6 已完成（M6 除「真实容器化验收」，验收证据见 §8.4）。切流后本机复跑 **`pnpm verify` 全绿**（契约 49 schema + 9 测试、server **227 tests / 227 pass**、web 17 tests、lint/typecheck 干净），`smoke:e2e` **16/16**、`smoke:ui` **15/15**（浏览器级功能 + 视觉审计 + 键盘与无障碍）；M6 三项验收（§7 安全回归 12 用例、1000 条分页性能 2 用例、无障碍与键盘操作）全部通过并留档于 §8.4。M5 的**数据迁移已落地并实跑**（`pnpm -C server migrate:legacy`，14 个回归用例 + 合成旧快照与**旧应用真跑出的真快照**各一次完整 CLI 实跑，含产物搬运与前后可见范围对照），**部署产物已落地**（`deploy/`：compose / 网关 / 安装升级备份恢复脚本，见 §8.2）。**M6 切流已完成**（见 §8.3）：旧应用已从 `rebuild-v2` 分支删除、根 `package.json` 与 `README.md` 已改写为 v2、根 `node_modules` 已删除（子包各自独立安装，已复验契约/server/web 三门禁在本机仍全绿）。**真实容器化验收仍需 docker 守护**（本机 `colima` 未运行）。**阿里云生产部署与真实旧数据迁移已完成并行验证（2026-10-19，见 §8.5）**：ECS 原生安装（PostgreSQL 16 + Node 24 + systemd `youzhao-api.service`），旧站真实快照迁移后 `users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4`，真机 `smoke:e2e` **16/16**、`smoke:ui` **15/15**；真库冒烟发现并修复了 2 个「只在本机 PGlite 测不出」的 int8 缺陷（§8.5），生产版配置 `/etc/youzhao/api.env.prod` 已通过 `loadConfig` 校验，**切 80/443 待用户加 `preview.youzhao.florai.cn` A 记录**。
+**当前进度**：M0–M6 已完成（M6 除「真实容器化验收」，验收证据见 §8.4）。切流后本机复跑 **`pnpm verify` 全绿**（契约 49 schema + 9 测试、server **227 tests / 227 pass**、web 17 tests、lint/typecheck 干净），`smoke:e2e` **16/16**、`smoke:ui` **15/15**（浏览器级功能 + 视觉审计 + 键盘与无障碍）；M6 三项验收（§7 安全回归 12 用例、1000 条分页性能 2 用例、无障碍与键盘操作）全部通过并留档于 §8.4。M5 的**数据迁移已落地并实跑**（`pnpm -C server migrate:legacy`，14 个回归用例 + 合成旧快照与**旧应用真跑出的真快照**各一次完整 CLI 实跑，含产物搬运与前后可见范围对照），**部署产物已落地**（`deploy/`：compose / 网关 / 安装升级备份恢复脚本，见 §8.2）。**M6 切流已完成**（见 §8.3）：旧应用已从 `rebuild-v2` 分支删除、根 `package.json` 与 `README.md` 已改写为 v2、根 `node_modules` 已删除（子包各自独立安装，已复验契约/server/web 三门禁在本机仍全绿）。**真实容器化验收仍需 docker 守护**（本机 `colima` 未运行）。**阿里云生产部署与真实旧数据迁移已完成并行验证（2026-10-19，见 §8.5）**：ECS 原生安装（PostgreSQL 16 + Node 24 + systemd `youzhao-api.service`），旧站真实快照迁移后 `users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4`，真机 `smoke:e2e` **16/16**、`smoke:ui` **15/15**；真库冒烟发现并修复了 2 个「只在本机 PGlite 测不出」的 int8 缺陷（§8.5），生产版配置 `/etc/youzhao/api.env.prod` 已通过 `loadConfig` 校验。**切流已同日完成**（预览域 A 记录 + certbot + 生产 vhost + 公网双冒烟 **16/16** / **15/15**），**旧 v1 站点已退役下线**（实验 vhost 9443/8444 已删、VM103 `youzhao-api.service` 已 `stop`+`disable`、SSH 隧道已停；详见 §8.5）。当前生产库基线：`users=5 groups=4 blueprints=15 versions=29 grants=6 tokens=5 tickets=0`（含授权一致性修正与冒烟残留清理）。
 
 **数据迁移要点**（旧 `app_state` JSON → 关系表，实现见 §8.1）：
 
@@ -1053,16 +1053,22 @@ can('user.create')                          // 装配页头主操作
 
 | 验收项 | 命令 | 结果 |
 | --- | --- | --- |
-| HTTP 契约端到端 | `smoke-e2e.mjs --base http://127.0.0.1:9443 --preview http://127.0.0.1:8444 --origin http://127.0.0.1:9443` | **16/16** |
-| 浏览器级功能 + 视觉 + 无障碍 | `smoke-ui.mjs --app http://127.0.0.1:9443`（走 SSH 隧道） | **15/15**（11 张蓝图卡片、4 行用户、四段权限页、成员导航裁剪、`/403` 守卫、零控制台报错） |
+| HTTP 契约端到端（隧道期，历史） | `smoke-e2e.mjs --base http://127.0.0.1:9443 --preview http://127.0.0.1:8444 --origin http://127.0.0.1:9443` | **16/16** |
+| 浏览器级功能 + 视觉 + 无障碍（隧道期，历史） | `smoke-ui.mjs --app http://127.0.0.1:9443`（走 SSH 隧道） | **15/15**（11 张蓝图卡片、4 行用户、四段权限页、成员导航裁剪、`/403` 守卫、零控制台报错） |
 | 迁移忠实度 | 迁移前后可见范围对照 + 真快照实跑 | 27 条授权、29 个版本、产物可预览；唯一变化为上述 `demo` 变宽（已确认可接受） |
 
-**并行验证的临时入口（切流前产物，切流时应删除）**：`/etc/nginx/conf.d/youzhao-v2-test.conf`（9443：静态 `web/dist` + `/api` 反代 + `= /mcp` 关闭缓冲）、`youzhao-v2-preview-test.conf`（8444：只放 `/preview/`）；线上 80/443 vhost 未改。静态资源需 nginx worker（`www-data`）可遍历：`chmod o+x /srv /srv/youzhao /srv/youzhao/app /srv/youzhao/app/web` + `chmod -R a+rX …/web/dist`。
+**并行验证的临时入口（已于同日删除，历史记录）**：`/etc/nginx/conf.d/youzhao-v2-test.conf`（9443：静态 `web/dist` + `/api` 反代 + `= /mcp` 关闭缓冲）、`youzhao-v2-preview-test.conf`（8444：只放 `/preview/`）；线上 80/443 vhost 未改。静态资源需 nginx worker（`www-data`）可遍历：`chmod o+x /srv /srv/youzhao /srv/youzhao/app /srv/youzhao/app/web` + `chmod -R a+rX …/web/dist`。两份 vhost 已删除（删除前备份在 ECS `/root/youzhao-backup-20261019144016/nginx/`），`nginx -t` 通过后 `reload` 两次以释放 9443/8444 监听。
 
 **教学点：PGlite 与真 pg 的类型强制不等价**。PGlite（本机测试/开发驱动）把 `bigint` 返回为 JS number，node-postgres 默认返回字符串；凡把数值列序列化进 JSON Schema（`integer`）或 `outputSchema` 的地方，两端行为不同。**门禁（PGlite）全绿不代表真库通过**——真机冒烟是 M6 的必需环节。同类差异还有 `numeric`/`decimal`（默认返回字符串）与 `date` 精度，新增数值列时优先用 `integer`/`bigint` + 显式 `Number()`，或统一在 `pool.ts` 的类型解析器里收敛。
 
 **切流完成（同日）**：① 用户在阿里云加 `preview.youzhao.florai.cn` A 记录 → `8.136.181.191`（223.5.5.5 / 8.8.8.8 / 1.1.1.1 三家一致）；② `certbot --webroot` 为预览域签发证书（`/etc/letsencrypt/live/preview.youzhao.florai.cn`）；③ `api.env.prod` 覆盖 `/etc/youzhao/api.env` 并重启 api（`APP_ENV=production` ⇒ Cookie `Secure`，必须全程 https；`/api/health` 报 `appEnv: "production"`）；④ 生产 vhost 替换旧 vhost（`youzhao.florai.cn` 应用域，`/preview*` 一律 404；`preview.youzhao.florai.cn` 只放 `/preview/`，其余 404）；⑤ 切后在**公网 https** 上重跑两条冒烟：`smoke-e2e` **16/16**、`smoke-ui` **15/15**；⑥ `docs/deployment-rules.md` 记录原生安装形态与 frp 拓扑。
-**切流后待办**：停用旧机（VM103 `192.168.1.13`）`youzhao-api.service`（**待用户确认**，旧站随时可回滚）；删除并行验证用的临时 vhost（9443/8444）与 SSH 隧道；清理生产库中的冒烟残留对象。
+**切流后待办 → 已完成（同日执行）**：① 停用旧机（VM103 `192.168.1.13`）`youzhao-api.service`：`systemctl stop` + `disable`，端口 4174 不再监听，数据 `/data/youzhao`（33 M）原样保留，**unit 文件保留**以便回滚（`systemctl enable --now youzhao-api`）；② 删除并行验证用的临时 vhost（9443/8444）与本机 SSH 隧道；③ 清理生产库中的冒烟残留对象（清回基线，先备份至 ECS `/root/youzhao-backup-20261019144207/`）。
+
+**旧 v1 站点退役记录与验证（2026-10-19）**
+
+退役后在生产上复验：`https://youzhao.florai.cn/` **200**、`/api/health` ok（契约 2.0.0）、无 Token `POST /mcp` **401**、`https://preview.youzhao.florai.cn/` **404**（该域只放 `/preview/`）、**公网 `smoke:e2e` 16/16**。回滚路径：VM103 `systemctl enable --now youzhao-api` + 恢复 vhost 备份（`/root/youzhao-backup-20261019144016/nginx/`）。
+
+**残留（有意保留，待用户显式确认）**：PVE 宿主 `/opt/frp/frpc-service.toml` 第 23 行仍注册着 `youzhao-web` 隧道——它与 `nas.florai.cn`、`hermes.florai.cn` **共用同一个 frpc 进程**（clientID `0711127c9d604a69`），改动会让两个在线站瞬断；且 ECS nginx 已不再把 `youzhao.florai.cn` 转给 `frps:8080`，该隧道已是死隧道、无暴露面。因此**暂不动**，等确认后再清理。另：Codex CLI 已注册 `youzhao` MCP（streamable HTTP + Bearer，`codex mcp add … --bearer-token-env-var`），但 **Agent 侧真实调用未跑**——阻塞于本机 `codex login`（需用户本人登录）。
 
 **授权一致性修正（切流后复核生产库发现，已在生产库执行）**
 
