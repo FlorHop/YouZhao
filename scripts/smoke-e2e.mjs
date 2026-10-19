@@ -199,7 +199,8 @@ const script = [
         await api('/api/auth/login', { method: 'POST', body: { username, password }, expect: 200 }),
       );
       sessionUserId = envelope.data.user.id;
-      assert(sessionUserId.startsWith('usr_'), `用户 id 形状异常：${sessionUserId}`);
+      // 迁移过来的用户沿用旧 id（如 `user_fcbc9312`），只校验「非空字符串」
+      assert(typeof sessionUserId === 'string' && sessionUserId.length > 0, `用户 id 异常：${sessionUserId}`);
       return `${envelope.data.user.displayName}（${envelope.data.user.identity}）`;
     },
   ],
