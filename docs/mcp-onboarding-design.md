@@ -181,9 +181,9 @@ YOUZHAO_API_BASE=https://youzhao.florai.cn YOUZHAO_MCP_TOKEN=yz_mcp_… node ser
 ## 4. 验收标准
 
 1. **零上下文接入**：一个新用户只从页面复制「一段配置 + 一个 Token」即可接入 Codex / Claude Code / Claude Desktop 之一，全程不克隆仓库、不手填路径。
-2. `GET /api/mcp/connection-info` 返回的 `httpUrl` 与生产实际 MCP 地址一致，且**全仓库不再出现 `127.0.0.1:4174`**。
+2. `GET /api/mcp/connection-info` 返回的 `httpUrl` 与生产实际 MCP 地址一致，且**用户可见的接入路径不再出现 `127.0.0.1:4174`**：页面片段、`skills/youzhao-mcp/*`、`server/mcp-server.mjs` 默认值、部署文档均指向部署域名。讲「问题现象 / 旧站事实」的历史描述、测试注释与本题的原判据文字除外（见 §5 步 4 的保留说明）。
 3. 自检端点能区分 401 / 403 / 超时三态，并在页面给出中文原因。
-4. `smoke:e2e` 增加一条：`connection-info` 返回的地址在 HTTP 层可达（对 `/mcp` 发 `initialize` 得 200）。
+4. `smoke:e2e` 覆盖地址可达性：第 07 步已对 `/mcp` 发 `tools/list` 得 200 且返回 8 个工具（满足；保留该步，不另加重复步骤）。可选再加一条显式断言 `connection-info.httpUrl === 生产地址`。
 5. 三处工具数量表述一致（8 = 4 + 4），只读 Token 的界面提示与实测一致（只见 4 个读工具）。
 
 ---
