@@ -946,7 +946,7 @@ can('user.create')                          // 装配页头主操作
 | M5 部署与数据迁移 | docker compose、install/upgrade/backup/restore、**预览独立域名**、`app_state` JSON → 关系表迁移脚本、产物迁移 | 单机一键部署通过；旧数据迁移后权限结果与迁移前**显式对照**（含已知缺陷的修正说明）；**直接切换到新接口，不保留并行旧接口**（Q7） |
 | M6 验收 | 安全回归（§7 全表复测）、性能（列表 1000 条分页）、无障碍与键盘操作 | 全部通过并留档 |
 
-**当前进度**：M0–M6 已完成（M6 除「真实容器化验收」，验收证据见 §8.4）。切流后本机复跑 **`pnpm verify` 全绿**（契约 49 schema + 9 测试、server **227 tests / 227 pass**、web 17 tests、lint/typecheck 干净），`smoke:e2e` **16/16**、`smoke:ui` **15/15**（浏览器级功能 + 视觉审计 + 键盘与无障碍）；M6 三项验收（§7 安全回归 12 用例、1000 条分页性能 2 用例、无障碍与键盘操作）全部通过并留档于 §8.4。M5 的**数据迁移已落地并实跑**（`pnpm -C server migrate:legacy`，14 个回归用例 + 合成旧快照与**旧应用真跑出的真快照**各一次完整 CLI 实跑，含产物搬运与前后可见范围对照），**部署产物已落地**（`deploy/`：compose / 网关 / 安装升级备份恢复脚本，见 §8.2）。**M6 切流已完成**（见 §8.3）：旧应用已从 `rebuild-v2` 分支删除、根 `package.json` 与 `README.md` 已改写为 v2、根 `node_modules` 已删除（子包各自独立安装，已复验契约/server/web 三门禁在本机仍全绿）。**真实容器化验收仍需 docker 守护**（本机 `colima` 未运行）。**阿里云生产部署与真实旧数据迁移已完成并行验证（2026-10-19，见 §8.5）**：ECS 原生安装（PostgreSQL 16 + Node 24 + systemd `youzhao-api.service`），旧站真实快照迁移后 `users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4`，真机 `smoke:e2e` **16/16**、`smoke:ui` **15/15**；真库冒烟发现并修复了 2 个「只在本机 PGlite 测不出」的 int8 缺陷（§8.5），生产版配置 `/etc/youzhao/api.env.prod` 已通过 `loadConfig` 校验。**切流已同日完成**（预览域 A 记录 + certbot + 生产 vhost + 公网双冒烟 **16/16** / **15/15**），**旧 v1 站点已退役下线**（实验 vhost 9443/8444 已删、VM103 `youzhao-api.service` 已 `stop`+`disable`、SSH 隧道已停；详见 §8.5）。当前生产库基线：`users=5 groups=4 blueprints=15 versions=29 grants=6 tokens=5 tickets=0`（含授权一致性修正与冒烟残留清理）。
+**当前进度**：M0–M6 已完成（M6 除「真实容器化验收」，验收证据见 §8.4）。切流后本机复跑 **`pnpm verify` 全绿**（契约 49 schema + 9 测试、server **247 tests / 247 pass**、web **29 tests**、lint/typecheck 干净），`smoke:e2e` **16/16**、`smoke:ui` **15/15**（浏览器级功能 + 视觉审计 + 键盘与无障碍）；M6 三项验收（§7 安全回归 12 用例、1000 条分页性能 2 用例、无障碍与键盘操作）全部通过并留档于 §8.4。M5 的**数据迁移已落地并实跑**（`pnpm -C server migrate:legacy`，14 个回归用例 + 合成旧快照与**旧应用真跑出的真快照**各一次完整 CLI 实跑，含产物搬运与前后可见范围对照），**部署产物已落地**（`deploy/`：compose / 网关 / 安装升级备份恢复脚本，见 §8.2）。**M6 切流已完成**（见 §8.3）：旧应用已从 `rebuild-v2` 分支删除、根 `package.json` 与 `README.md` 已改写为 v2、根 `node_modules` 已删除（子包各自独立安装，已复验契约/server/web 三门禁在本机仍全绿）。**真实容器化验收仍需 docker 守护**（本机 `colima` 未运行）。**阿里云生产部署与真实旧数据迁移已完成并行验证（2026-10-19，见 §8.5）**：ECS 原生安装（PostgreSQL 16 + Node 24 + systemd `youzhao-api.service`），旧站真实快照迁移后 `users=4 groups=4 blueprints=15 versions=29 grants=27 tokens=4`，真机 `smoke:e2e` **16/16**、`smoke:ui` **15/15**；真库冒烟发现并修复了 2 个「只在本机 PGlite 测不出」的 int8 缺陷（§8.5），生产版配置 `/etc/youzhao/api.env.prod` 已通过 `loadConfig` 校验。**切流已同日完成**（预览域 A 记录 + certbot + 生产 vhost + 公网双冒烟 **16/16** / **15/15**），**旧 v1 站点已退役下线**（实验 vhost 9443/8444 已删、VM103 `youzhao-api.service` 已 `stop`+`disable`、SSH 隧道已停；详见 §8.5）。当前生产库基线：`users=5 groups=4 blueprints=15 versions=29 grants=6 tokens=5 tickets=0`（含授权一致性修正与冒烟残留清理）。
 
 **数据迁移要点**（旧 `app_state` JSON → 关系表，实现见 §8.1）：
 
@@ -1069,6 +1069,17 @@ can('user.create')                          // 装配页头主操作
 退役后在生产上复验：`https://youzhao.florai.cn/` **200**、`/api/health` ok（契约 2.0.0）、无 Token `POST /mcp` **401**、`https://preview.youzhao.florai.cn/` **404**（该域只放 `/preview/`）、**公网 `smoke:e2e` 16/16**。回滚路径：VM103 `systemctl enable --now youzhao-api` + 恢复 vhost 备份（`/root/youzhao-backup-20261019144016/nginx/`）。
 
 **残留（有意保留，待用户显式确认）**：PVE 宿主 `/opt/frp/frpc-service.toml` 第 23 行仍注册着 `youzhao-web` 隧道——它与 `nas.florai.cn`、`hermes.florai.cn` **共用同一个 frpc 进程**（clientID `0711127c9d604a69`），改动会让两个在线站瞬断；且 ECS nginx 已不再把 `youzhao.florai.cn` 转给 `frps:8080`，该隧道已是死隧道、无暴露面。因此**暂不动**，等确认后再清理。另：Codex CLI 已注册 `youzhao` MCP（streamable HTTP + Bearer，`codex mcp add … --bearer-token-env-var`），但 **Agent 侧真实调用未跑**——阻塞于本机 `codex login`（需用户本人登录）。
+
+**客户端缺陷修复：分享蓝图必然报「票据已被使用」（2026-10-20，`689a1da`）**
+
+| # | 现象 | 根因 | 修复 |
+| --- | --- | --- | --- |
+| 1 | 蓝图预览页点「分享」→ 浏览器直接显示 `{"error":{"code":"FORBIDDEN","message":"票据已被使用",…}}` | `BlueprintPreviewPage.vue::openInNewWindow()` 复用 iframe **已兑换过**的 `frameSrc`；预览票据**单次有效**（首次兑换即作废并发 30 分钟预览 Cookie），第二次兑换在 `server/app/preview.ts` 抛 `FORBIDDEN/票据已被使用`。且旧实现用 `window.open('', '_blank', 'noopener,noreferrer')`，`noopener` 使其返回 `null`，白窗永不跳转 | 每次分享**新签**一张票据；同步 `window.open('about:blank', '_blank')`（不带 `noopener` 才拿得到句柄）→ `opener=null` → `location.replace(ticket.url)`；被拦截/失败分别给中文 toast |
+| 2 | 预览域的错误以 JSON 呈现给浏览器 | 预览路由只返回 JSON 错误体 | `server/http/routes/preview.ts` 新增 `wantsHtml()`/`escapeHtml()`/`previewErrorCopy()`/`sendPreviewErrorPage()`：浏览器导航（`Accept: text/html`）得到 403/404/500 中文页（`no-store` + CSP），子资源请求仍返回 JSON 信封 |
+
+验收（生产、真库）：同一票据连兑两次 → 第 1 次 **303**、第 2 次 `Accept: text/html` 得 403 中文页（含「这个预览链接已经用过了」）、`Accept: application/json` 仍 JSON；CDP 带 `userGesture` 真实点击两次分享，两次都新开标签页并渲染出产物。门禁：server **247/247**、preview **14/14**、web typecheck/lint 干净、vitest **29/29**。
+
+**已知取舍（未改）**：`PREVIEW_TICKET_TTL_SECONDS=60` 且票据单次有效 ⇒ 分享出去的链接**只在 60 秒内可用**，适合「在新窗口打开」，不适合发给同事；若要真正的「分享给他人」，需另设长时票据或改用「预览域登录态」。**验收经验**：CDP 驱动点击必须带 `userGesture: true`，否则依赖 `window.open` 的 UI 会假失败（`newTargets=0`）。
 
 **授权一致性修正（切流后复核生产库发现，已在生产库执行）**
 
