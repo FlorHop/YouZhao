@@ -24,7 +24,7 @@ import {
   type PreviewCookiePayload,
   verifyPreviewCookie,
 } from '../../app/preview.js';
-import { AppError } from '../../domain/errors.js';
+import { AppError, isAppError } from '../../domain/errors.js';
 import { resolveArtifactPath } from '../../storage/artifacts.js';
 import { requireContext } from '../plugins/request-context.js';
 
@@ -125,6 +125,104 @@ function assertRelPath(relPath: string): void {
   }
 }
 
+/** 浏览器直接打开（Accept 含 text/html）时才给人看的错误页；子资源仍走统一 JSON 错误体。 */
+function wantsHtml(request: FastifyRequest): boolean {
+  const accept = request.headers.accept;
+  return typeof accept === 'string' && accept.includes('text/html');
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (char) => {
+    switch (char) {
+      case '&':
+        return '&amp;';
+      case '<':
+        return '&lt;';
+      case '>':
+        return '&gt;';
+      case '"':
+        return '&quot;';
+      default:
+        return '&#39;';
+    }
+  });
+}
+
+/**
+ * 失败文案。票据是一次性的，用户刷新或重复打开就会撞上「票据已被使用」——
+ * 这时该告诉他回有招重新打开，而不是甩一段 JSON 错误体。
+ * 匹配的是 `server/app/preview.ts` 里的固定文案，改动那边时同步这里。
+ */
+function previewErrorCopy(error: unknown): { status: number; title: string; hint: string } {
+  const message = isAppError(error) ? error.message : '';
+  if (message.includes('票据已被使用')) {
+    return {
+      status: 403,
+      title: '这个预览链接已经用过了',
+      hint: '预览票据是一次性的，只能兑换一次。请回到有招，在蓝图页重新点「在新窗口打开」。',
+    };
+  }
+  if (message.includes('不匹配')) {
+    return {
+      status: 403,
+      title: '预览会话与版本不匹配',
+      hint: '请回到有招，重新打开这个版本的预览。',
+    };
+  }
+  if (message.includes('预览会话')) {
+    return {
+      status: 403,
+      title: '预览会话已过期',
+      hint: '预览会话有效期很短。请回到有招，在蓝图页重新打开预览。',
+    };
+  }
+  if (isAppError(error) && error.code === 'NOT_FOUND') {
+    return {
+      status: 404,
+      title: '产物不存在',
+      hint: '这个版本的产物在服务端缺失，请换一个版本，或让发布者重新发布。',
+    };
+  }
+  return {
+    status: 500,
+    title: '预览暂时打不开',
+    hint: '请稍后重试；若持续失败，请联系管理员。',
+  };
+}
+
+function sendPreviewErrorPage(reply: FastifyReply, error: unknown): FastifyReply {
+  const { status, title, hint } = previewErrorCopy(error);
+  const body = `<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(title)} · 有招</title>
+<style>
+  body { margin: 0; min-height: 100vh; display: grid; place-items: center; background: #f5f5f5; color: #0d0d0d; font-family: 'Söhne', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; }
+  main { max-width: 30rem; margin: 1.5rem; padding: 2rem; background: #ffffff; border: 1px solid #e5e5e5; border-radius: 12px; }
+  h1 { margin: 0 0 0.75rem; font-size: 1.125rem; font-weight: 600; }
+  p { margin: 0; font-size: 0.9375rem; line-height: 1.65; color: #6e6e6e; }
+</style>
+</head>
+<body>
+<main>
+<h1>${escapeHtml(title)}</h1>
+<p>${escapeHtml(hint)}</p>
+</main>
+</body>
+</html>`;
+  void reply
+    .code(status)
+    .header('content-type', 'text/html; charset=utf-8')
+    .header('content-length', String(Buffer.byteLength(body)))
+    .header('cache-control', 'no-store')
+    .header('x-content-type-options', 'nosniff')
+    .header('referrer-policy', 'no-referrer')
+    .header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'; frame-ancestors 'self'");
+  return reply.send(body) as FastifyReply;
+}
+
 export function registerPreviewRoutes(app: FastifyInstance, deps: PreviewRouteDeps): void {
   const { db, config } = deps;
 
@@ -208,6 +306,19 @@ export function registerPreviewRoutes(app: FastifyInstance, deps: PreviewRouteDe
     return reply.send(content);
   };
 
-  app.get('/preview/p/:blueprintId/:version/', serve);
-  app.get('/preview/p/:blueprintId/:version/*', serve);
+  /**
+   * 浏览器直接打开时把失败渲染成一张可读的页面。子资源（css/js）仍抛给统一错误处理，
+   * 保持 JSON 错误体——把 HTML 当成样式/脚本塞回 iframe 只会更糟。
+   */
+  const serveFriendly = async (request: FastifyRequest, reply: FastifyReply): Promise<unknown> => {
+    try {
+      return await serve(request, reply);
+    } catch (error) {
+      if (!wantsHtml(request)) throw error;
+      return sendPreviewErrorPage(reply, error);
+    }
+  };
+
+  app.get('/preview/p/:blueprintId/:version/', serveFriendly);
+  app.get('/preview/p/:blueprintId/:version/*', serveFriendly);
 }

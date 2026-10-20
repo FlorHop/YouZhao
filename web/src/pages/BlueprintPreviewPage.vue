@@ -12,6 +12,7 @@
  */
 import Button from 'primevue/button';
 import Select from 'primevue/select';
+import { useToast } from 'primevue/usetoast';
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 
@@ -28,6 +29,7 @@ const props = defineProps<{ id: string }>();
 const router = useRouter();
 const route = useRoute();
 const session = useSessionStore();
+const toast = useToast();
 
 const FRAME_LOAD_TIMEOUT_MS = 20000;
 /** 票据默认 60 秒有效；离开这么久之后再回来就先换一张新票。 */
@@ -273,18 +275,38 @@ function goBack(): void {
 }
 
 async function openInNewWindow(): Promise<void> {
-  if (frameSrc.value !== '' && failureKind.value === null) {
-    window.open(frameSrc.value, '_blank', 'noopener,noreferrer');
+  // 每次「在新窗口打开」都要换一张新票：`frameSrc` 里的票在 iframe 加载时就已经被服务端
+  // 兑换掉了（票据单次使用），直接复用只会拿到 403「票据已被使用」。
+  //
+  // 开窗必须同步发生——await 之后再开会被浏览器当成非用户手势而拦截——所以先开空白页拿句柄。
+  // 这里也不能带 `noopener`：带它时 window.open 返回 null，就拿不到句柄去导航；改为导航前后
+  // 立刻断开 opener。
+  const opened = window.open('about:blank', '_blank');
+  if (opened === null) {
+    toast.add({
+      severity: 'warn',
+      summary: '新窗口被拦截',
+      detail: '请允许本站弹出窗口后重试，或直接在当前页查看预览。',
+      life: 5000,
+    });
     return;
   }
-  // 当前没有可用地址时需要先换一张新票：同步打开空白窗口，避免被浏览器拦截。
-  const opened = window.open('', '_blank', 'noopener,noreferrer');
+  opened.opener = null;
   try {
     const ticket = await issuePreviewTicket(props.id, selectedVersion.value);
-    if (opened !== null) opened.location.href = ticket.url;
+    opened.location.replace(ticket.url);
   } catch (error) {
-    if (opened !== null) opened.close();
-    await handleError(error, 'load-timeout');
+    opened.close();
+    if (error instanceof ApiError && error.isAuthError) {
+      await goToLogin();
+      return;
+    }
+    toast.add({
+      severity: 'error',
+      summary: '打不开新窗口',
+      detail: error instanceof ApiError ? error.message : '请求没有成功返回，请稍后重试。',
+      life: 6000,
+    });
   }
 }
 

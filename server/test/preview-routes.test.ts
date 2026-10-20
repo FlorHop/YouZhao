@@ -210,6 +210,19 @@ describe('预览域交付与嵌入票据', () => {
     assert.equal(again.headers['content-type'], 'text/html; charset=utf-8');
 
     await expectErrorCode(await context.app.inject({ method: 'GET', url: ticket }), 403, 'FORBIDDEN');
+
+    // 浏览器直接打开（Accept 含 text/html）时给一张可读的页面，而不是一段 JSON 错误体
+    const asBrowser = await context.app.inject({
+      method: 'GET',
+      url: ticket,
+      headers: { accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+    });
+    assert.equal(asBrowser.statusCode, 403);
+    assert.equal(asBrowser.headers['content-type'], 'text/html; charset=utf-8');
+    assert.equal(asBrowser.headers['cache-control'], 'no-store');
+    assert.match(asBrowser.body, /这个预览链接已经用过了/);
+    assert.match(asBrowser.body, /重新点「在新窗口打开」/);
+    assert.match(asBrowser.body, /<html lang="zh-CN">/);
   });
 
   it('票据与请求的蓝图版本不匹配时被拒', async () => {
