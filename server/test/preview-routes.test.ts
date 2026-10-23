@@ -260,6 +260,33 @@ describe('预览域交付与嵌入票据', () => {
       403,
       'FORBIDDEN',
     );
+
+    // 过期不该被当成「服务端暂时打不开」：浏览器打开时要拿到 403 与「已过期」文案，而不是 500
+    const asBrowser = await context.app.inject({
+      method: 'GET',
+      url: `/preview/p/${blueprint.blueprintId}/${blueprint.version}/?t=${raw}`,
+      headers: { accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+    });
+    assert.equal(asBrowser.statusCode, 403);
+    assert.match(asBrowser.body, /这个预览链接已经过期了/);
+    assert.match(asBrowser.body, /有效期只有 60 秒/);
+    assert.doesNotMatch(asBrowser.body, /预览暂时打不开/);
+  });
+
+  it('不存在的票据在浏览器里给「无效」页（403，而非 500）', async () => {
+    const { context } = await makeContext();
+    const world = await seedWorld(context.db);
+    const blueprint = await seedBlueprint(context, world.ownerId);
+
+    const asBrowser = await context.app.inject({
+      method: 'GET',
+      url: `/preview/p/${blueprint.blueprintId}/${blueprint.version}/?t=yz_pt_never-issued`,
+      headers: { accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8' },
+    });
+    assert.equal(asBrowser.statusCode, 403);
+    assert.equal(asBrowser.headers['content-type'], 'text/html; charset=utf-8');
+    assert.match(asBrowser.body, /这个预览链接无效/);
+    assert.doesNotMatch(asBrowser.body, /预览暂时打不开/);
   });
 
   it('没有票据也没有预览 Cookie 时取产物被拒（匿名可读的旧行为已消失）', async () => {

@@ -162,6 +162,21 @@ function previewErrorCopy(error: unknown): { status: number; title: string; hint
       hint: '预览票据是一次性的，只能兑换一次。请回到有招，在蓝图页重新点「在新窗口打开」。',
     };
   }
+  if (message.includes('票据已过期')) {
+    // 票据默认只活 60 秒：复制到地址栏、隔一会儿再打开，或网络慢到跨过有效期，都会走到这里。
+    return {
+      status: 403,
+      title: '这个预览链接已经过期了',
+      hint: '预览票据的有效期只有 60 秒。请回到有招，在蓝图页重新点「在新窗口打开」。',
+    };
+  }
+  if (message.includes('票据无效')) {
+    return {
+      status: 403,
+      title: '这个预览链接无效',
+      hint: '链接可能不完整或被改动过。请回到有招，在蓝图页重新点「在新窗口打开」。',
+    };
+  }
   if (message.includes('不匹配')) {
     return {
       status: 403,
