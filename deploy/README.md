@@ -176,16 +176,41 @@ claude mcp add --transport http youzhao https://app.example.com/mcp \
 | **生产校验报错**（`… 长度至少 32` / `必须 https://` / `不同源`） | 按报错补 `.env`：密钥 ≥32、`https://`、预览域与应用域不同源 |
 | **预览域 404** | ① 打开的是应用域 → 设计如此（应用域 `/preview*` 恒 404）；② 漏了 `/preview` 前缀或直接改了前缀 → 用 `.env` 里的 `PREVIEW_PUBLIC_BASE_PATH` 原样访问；③ 产物没落盘 → `docker exec youzhao-api ls /data/youzhao/previews` 并与 `$COMPOSE logs api` 对照 |
 | **预览域 403** | 先看 `$COMPOSE logs --tail=100 api` 判断是门票校验还是被拒；常见原因：门票过期（`PREVIEW_TICKET_TTL_SECONDS`）、打开用的域名与签发时 `PREVIEW_DOMAIN` 不一致、中间还有一层代理改写了 Host/前缀 |
-| **预览域 502/504** | `$COMPOSE ps` 看 api 是否 healthy；api 重建后网关 upstream IP 会变，执行 `$COMPOSE up -d --no-deps --force-recreate gateway` |
+| **全站 502/504**（api 重建后） | 网关已改 `resolver 127.0.0.11 valid=10s` + 变量化 `proxy_pass`（2026-10-23），正常情况下无需动作；若仍 502：`$COMPOSE ps` 看 api 是否 healthy、`$COMPOSE logs --tail=50 api`，并确认网关能解析服务名（`docker exec youzhao-gateway getent hosts api`） |
 | **SSE / MCP 流式被缓冲** | `curl -N -H "Authorization: Bearer <token>" -H 'Accept: text/event-stream' https://app.example.com/mcp`：若整段一次性到达，说明还有一层代理在缓冲；确认请求确实走 `/mcp`（不是 web），并保留网关里的 `proxy_buffering off` |
 | **MCP 401** | 令牌缺失/失效：检查 `Authorization: Bearer` 头（不要放查询串）、令牌是否被吊销 |
 | **前端 502 / 静态 404** | `$COMPOSE logs web`；web 容器只服务 `/usr/share/nginx/html`，SPA 回退在 web 侧，网关不再重复配置 |
 | **改了 `.env` 不生效** | `$COMPOSE up -d --force-recreate <service>`（`env_file` 只在容器创建时读取） |
 
+
+| **构建报 `unexpected value 'false' for '--frozen-lockfile' found`** | pnpm 12 不接受 `--frozen-lockfile=false` 这种布尔值写法；本仓库 Dockerfile 已改为 `--no-frozen-lockfile`，自建模板请同步 |
+| **构建报 `COPY … file not found in build context or excluded by .dockerignore`** | 根 `.dockerignore` 排除了 `deploy`，必须保留放行行 `!deploy/web/nginx.conf`（`deploy/.env` 仍应排除） |
+| **api 报 `Cannot read package config /app/server/package.json: permission denied.`** | 宿主机 umask 077 时 `package.json` 是 0600，`COPY` 后 `USER node`（uid 1000）读不到；本仓库 Dockerfile 已在 `USER` 前加 `chmod -R a+rX` |
+| **`COMPOSE_PROJECT_NAME` 放 `--env-file` 里不生效** | 该变量不从 env 文件读取；显式传 `-p <project>`，否则会落到目录名派生的项目名 |
+| **colima 上 postgres 卷 `failed to populate volume: … no such file or directory`** | `DATA_ROOT` 必须在 colima 共享路径内（macOS 默认只共享 `/Users/**`），不能指向 `/tmp`；子目录给 `chmod 777`（postgres 只校验 PGDATA 子目录属主） |
 ---
 
 ## 8. 与设计文档的差异（已知，待裁决）
 
 1. `docs/architecture-design.md` §3.9 列了 `APP_HOST`，但仓库中没有任何代码读取它（`server/config.ts` 与 web 侧均无引用）；网关实际由 `GATEWAY_APP_HOST` + `API_PUBLIC_BASE_URL` 决定。本项目保留该变量并在 `.env.example` 注明「文档遗留、网关注入」。
-2. 网关使用**静态 `upstream`**（保连接复用），不是 `resolver 127.0.0.11` 动态解析：api 容器重建后必须重建网关（`upgrade.sh` 已自动做，排障表也列了）。
+2. 网关改为 **`resolver 127.0.0.11 valid=10s` + 变量化 `proxy_pass`** 动态解析（2026-10-23 容器化验收修复）：api 容器重建后无需重建网关；代价是放弃 `upstream` 的连接复用（keepalive），单机规模可接受。
 3. 无证书环境默认不用 TLS，应用域与预览域都跑在明文端口（80 / 8080），用于本机验收；TLS 启用步骤写在 [gateway/nginx.conf](gateway/nginx.conf) 文末。
+
+---
+
+## 9. 容器化验收记录（2026-10-23，本机 colima）
+
+用本机 colima（Docker 29.2.1）按 `install.sh -y --dev` 起四容器，把 `docs/architecture-design.md` §8.6 的验收跑通：
+
+| 项 | 结果 |
+| --- | --- |
+| 四容器 healthy、网关 `/health` 200（信封 `{data,meta}`）、SPA `/` 200 `<title>有招</title>` | 通过 |
+| `smoke-e2e`（`--base http://127.0.0.1:18080 --preview http://127.0.0.1:18081 --origin http://localhost:18080`） | **16/16** |
+| 全栈 `restart` 后数据留存（`blueprints=1 groups=2 users=1 tokens=0` 不变） | 通过 |
+| `backup.sh` 产物完整（`db.dump` / `previews.tar.gz` / `uploads.tar.gz` / `env.backup` / `compose.yaml` / `gateway-nginx.conf` / `MANIFEST` / `SHA256SUMS`） | 通过 |
+| `restore.sh <绝对路径> --force` 整库替换（标记分组消失）、恢复后复跑 `smoke-e2e` | 16/16 通过 |
+| 新增可选构建参数 `NPM_REGISTRY`（容器内 npm 源不可达时改走镜像站） | 已落地 |
+
+过程中修掉 4 个只在真实容器里暴露的部署产物缺陷，根因与修法见 `docs/architecture-design.md` §8.6 与上表 §7 的排障行。
+**验收脚本建议始终显式传凭据**：`smoke-e2e` 默认回退 `admin` / `local-dev-owner-password`，容器栈的密码是 `install.sh` 生成的，
+不显式传 `--username/--password` 会在第 02 步 `POST /api/auth/login` 直接 401 并连锁失败。
