@@ -11,3 +11,4 @@ server/node_modules
 packages/contracts/node_modules
 data
 deploy
+!deploy/web/nginx.conf

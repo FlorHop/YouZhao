@@ -6,14 +6,17 @@ FROM node:24-alpine AS base
 ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH
 RUN corepack enable && corepack prepare pnpm@12.3.4 --activate
 WORKDIR /app
+# 可选：内网/镜像站加速（留空则用默认 npm 源）。由 compose 的 NPM_REGISTRY 传入。
+ARG NPM_REGISTRY=
+RUN if [ -n "$NPM_REGISTRY" ]; then printf 'registry=%s\n' "$NPM_REGISTRY" > /root/.npmrc; fi
 
 FROM base AS deps
 COPY package.json ./
 COPY packages/contracts/package.json packages/contracts/
 COPY server/package.json server/
 COPY server/pnpm-workspace.yaml server/
-RUN pnpm -C packages/contracts install --frozen-lockfile=false \
- && pnpm -C server install --frozen-lockfile=false
+RUN pnpm -C packages/contracts install --no-frozen-lockfile \
+ && pnpm -C server install --no-frozen-lockfile
 
 FROM deps AS build
 COPY packages/contracts packages/contracts
@@ -25,6 +28,8 @@ FROM build AS runtime
 ENV NODE_ENV=production APP_ENV=production
 # 产物卷（PREVIEW_STORAGE_PATH 指向这里）
 RUN mkdir -p /data/youzhao/previews && chown -R node:node /data/youzhao
+# 源文件按仓库权限复制：开发机 umask 077 时是 0600（root 所有），node 用户读不到
+RUN chmod -R a+rX /app
 USER node
 WORKDIR /app/server
 EXPOSE 3000

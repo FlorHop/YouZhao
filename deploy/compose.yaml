@@ -62,6 +62,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.api
+      args:
+        NPM_REGISTRY: "${NPM_REGISTRY:-}"
     image: ${COMPOSE_PROJECT_NAME:-youzhao}-api:${IMAGE_TAG:-latest}
     container_name: youzhao-api
     restart: *default-restart
@@ -107,6 +109,8 @@ services:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.web
+      args:
+        NPM_REGISTRY: "${NPM_REGISTRY:-}"
     image: ${COMPOSE_PROJECT_NAME:-youzhao}-web:${IMAGE_TAG:-latest}
     container_name: youzhao-web
     restart: *default-restart
