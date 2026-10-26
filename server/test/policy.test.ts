@@ -170,8 +170,9 @@ const cases: readonly Case[] = [
   { name: '能力覆盖该分组则可归档', ctx: managerCtx, action: 'group.archive', resource: { kind: 'group', groupId: GROUPS.g1 }, allow: true },
   { name: '不变量11：恢复同样受能力门控', ctx: managerCtx, action: 'group.restore', resource: { kind: 'group', groupId: GROUPS.g1 }, allow: true },
   { name: '不变量11：恢复无能力被拒', ctx: memberCtx, action: 'blueprint.restore', resource: { kind: 'blueprint', blueprintId: BP.b1, groupId: GROUPS.g1 }, code: 'CAPABILITY_REQUIRED' },
-  { name: '建组需任一 blueprint.manage', ctx: managerCtx, action: 'group.create', allow: true },
-  { name: '普通成员不能建组', ctx: memberCtx, action: 'group.create', code: 'CAPABILITY_REQUIRED' },
+  // 建组 = 划新地盘，只有所有者能做，不由管辖/能力派生（permission-design §2.3）
+  { name: '建组仅所有者：用户管理员即使持 manage 也被拒', ctx: managerCtx, action: 'group.create', code: 'FORBIDDEN' },
+  { name: '普通成员不能建组', ctx: memberCtx, action: 'group.create', code: 'FORBIDDEN' },
   { name: '建蓝图需要 publish 而非 manage', ctx: managerCtx, action: 'blueprint.create', resource: { kind: 'group', groupId: GROUPS.g1 }, code: 'CAPABILITY_REQUIRED' },
   { name: '发布新版本需要 publish', ctx: managerCtx, action: 'version.publish', resource: { kind: 'blueprint', blueprintId: BP.b1, groupId: GROUPS.g1 }, code: 'CAPABILITY_REQUIRED' },
   { name: '覆盖版本需要 manage', ctx: managerCtx, action: 'version.cover', resource: { kind: 'blueprint', blueprintId: BP.b1, groupId: GROUPS.g1 }, allow: true },

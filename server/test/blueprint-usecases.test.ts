@@ -103,7 +103,7 @@ async function grantView(
 
 // ── 分组 ─────────────────────────────────────────────────────────────────────
 
-test('分组：新建分组取最大 sortOrder +10，只给创建者本人授权（所有者不写行、其他管理者不被自动授权）', async () => {
+test('分组：新建分组取最大 sortOrder +10，只有所有者能建，且不写任何授权行', async () => {
   const root = await tempRoot();
   const context = await createTestContext({ PREVIEW_STORAGE_PATH: root });
   try {
@@ -133,20 +133,18 @@ test('分组：新建分组取最大 sortOrder +10，只给创建者本人授权
       throw new Error(`所有者建组不应写授权行，实际 ${ownerGrants.length} 行`);
     }
 
-    // 非所有者建组：只授权创建者本人；别的管理者（member 对本组没有能力范围）不被顺手授权
-    const byMember = await createBlueprintGroup(db, member, { name: '研发' }, FACTS);
-    const memberGrants = await grantsOf(byMember.group.id);
-    const userIds = memberGrants.map((row) => row.user_id);
-    if (userIds.length !== 1 || userIds[0] !== memberId) {
-      throw new Error(`只应授权创建者，实际 [${userIds.join(', ')}]`);
-    }
-    if (memberGrants[0]?.granted_by !== memberId) throw new Error('granted_by 应为创建者');
+    // 建组 = 划新地盘，只有所有者能做（permission-design §2.3）：
+    // 即使持有 blueprint.manage，非所有者也被拒，且不留下半截分组或授权行
+    const groupsBefore = await db.selectFrom('blueprint_groups').select('id').execute();
+    await expectAppError('FORBIDDEN', () => createBlueprintGroup(db, member, { name: '研发' }, FACTS));
+    const groupsAfter = await db.selectFrom('blueprint_groups').select('id').execute();
+    if (groupsAfter.length !== groupsBefore.length) throw new Error('被拒的建组不应落库');
   } finally {
     await context.close();
   }
 });
 
-test('分组：名称重复返回 GROUP_CONFLICT，无 blueprint.manage 的成员建组返回 CAPABILITY_REQUIRED', async () => {
+test('分组：名称重复返回 GROUP_CONFLICT，非所有者建组返回 FORBIDDEN', async () => {
   const root = await tempRoot();
   const context = await createTestContext({ PREVIEW_STORAGE_PATH: root });
   try {
@@ -159,7 +157,7 @@ test('分组：名称重复返回 GROUP_CONFLICT，无 blueprint.manage 的成�
     await expectAppError('GROUP_CONFLICT', () =>
       createBlueprintGroup(db, owner, { name: '研发' }, FACTS),
     );
-    await expectAppError('CAPABILITY_REQUIRED', () =>
+    await expectAppError('FORBIDDEN', () =>
       createBlueprintGroup(db, member, { name: '运营' }, FACTS),
     );
 
@@ -169,8 +167,8 @@ test('分组：名称重复返回 GROUP_CONFLICT，无 blueprint.manage 的成�
       .where('action', '=', 'group.create')
       .where('result', '=', 'deny')
       .execute();
-    const denied = audit.filter((row) => row.error_code === 'CAPABILITY_REQUIRED');
-    if (denied.length !== 1) throw new Error(`期望 1 条 CAPABILITY_REQUIRED 拒绝审计，实际 ${denied.length}`);
+    const denied = audit.filter((row) => row.error_code === 'FORBIDDEN');
+    if (denied.length !== 1) throw new Error(`期望 1 条 FORBIDDEN 拒绝审计，实际 ${denied.length}`);
     const conflicted = audit.filter((row) => row.error_code === 'GROUP_CONFLICT');
     if (conflicted.length !== 1) throw new Error('重名冲突也应留下一条拒绝审计');
   } finally {

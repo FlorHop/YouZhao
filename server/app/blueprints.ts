@@ -28,7 +28,7 @@ import type { RequestContext } from '../domain/entities.js';
 import { AppError } from '../domain/errors.js';
 import { DEFAULT_GROUP_ID, newId } from '../domain/ids.js';
 import { assertAuthorized, authorize } from '../domain/policy.js';
-import { hasAnyCapability, isResourceVisible, type ResourceLike } from '../domain/scopes.js';
+import { isResourceVisible, type ResourceLike } from '../domain/scopes.js';
 import {
   artifactDirFor,
   MAX_ARTIFACT_BYTES,
@@ -378,49 +378,10 @@ export async function createBlueprintGroup(
         throw error;
       }
 
-      // 只给创建者本人一条查看授权。旧模型在新建分组时会把该分组授权给「所有持有
-      // demo-preview:manage 的用户」——那既越出各人能力（blueprint.manage）自带的资源
-      // 范围，也让「查看范围只能由 O/A 增量授权」失去意义，属于旧模型已被审计的缺陷，
-      // 不带进 v2。所有者隐式可见全部分组，同样不写行。
-      if (context.identity !== 'owner') {
-        await db
-          .insertInto('view_grants')
-          .values({
-            id: newId('grn'),
-            user_id: context.userId,
-            target_type: 'group',
-            target_id: groupId,
-            granted_by: context.userId,
-          })
-          .onConflict((oc) => oc.columns(['user_id', 'target_type', 'target_id']).doNothing())
-          .execute();
-
-        if (hasAnyCapability(context.capabilities, 'blueprint.publish')) {
-          // 能发版的人：新组纳入自己的管辖（分组管辖 ⇒ 发布 + 维护）
-          await db
-            .insertInto('group_managers')
-            .values({ group_id: groupId, user_id: context.userId, granted_by: context.userId })
-            .onConflict((oc) => oc.columns(['group_id', 'user_id']).doNothing())
-            .execute();
-        } else if (hasAnyCapability(context.capabilities, 'blueprint.manage')) {
-          // 只会维护的人：只补一条 manage，不给发版权
-          await db
-            .insertInto('capabilities')
-            .values({
-              id: newId('cap'),
-              user_id: context.userId,
-              capability: 'blueprint.manage',
-              target_type: 'group',
-              target_id: groupId,
-              granted_by: context.userId,
-            })
-            .onConflict((oc) =>
-              oc.columns(['user_id', 'capability', 'target_type', 'target_id']).doNothing(),
-            )
-            .execute();
-        }
-      }
-
+      // 建组只有所有者能做（`policy.ts` 的 `group.create`），所有者隐式可见全部分组，
+      // 因此这里不写任何授权行。旧模型「建组时把新分组授予所有持 manage 的用户」是已审计
+      // 的缺陷；「建组者自动获得新组管辖」也在 2026-10-26 一并去掉——那会让管辖边界
+      // 自我扩张（管辖一个组 ⇒ 无限建组且每组都带发版权）。
       const row = await db
         .selectFrom('blueprint_groups')
         .selectAll()

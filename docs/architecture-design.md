@@ -285,7 +285,7 @@ authorize(ctx: RequestContext, action: Action, resource: Resource): Decision
 | `grant.view.add` / `grant.view.remove` | 所有者；或用户管理员且**目标用户在自己名下**且**授权资源 ⊆ 自己的可委派范围**（S1） |
 | `capability.grant`（`blueprint.manage` / `blueprint.publish`） | 仅所有者（用户管理员不得授予业务能力；其自身能力由所有者叠加） |
 | `jurisdiction.read` / `jurisdiction.set`（管辖） | 仅所有者；`set` 的目标必须是 `user_admin`（所有者隐式全权、普通用户走例外授权），整体替换两张管辖表（`docs/permission-design.md` §2.3） |
-| `group.create` | 任一被授权资源上的 `blueprint.manage`（新分组自动落在其范围内，或由所有者显式授权） |
+| `group.create` | **仅所有者**：建组是一次「划新地盘」，不由管辖或 `blueprint.manage` 派生（否则管辖一个组即可无限扩张）；建组不写任何授权行，要交给管理员走 `jurisdiction.set` |
 | `group.delete` / `group.reorder` | 该分组上的 `blueprint.manage`；删除需同时校验分组内全部蓝图的 `blueprint.manage` |
 | `blueprint.create` | 目标分组上的 `blueprint.publish` |
 | `blueprint.update`（名称/概述/标签/归档/移动分组） | 该蓝图上的 `blueprint.manage`；移动分组需**源 + 目标**两处 `blueprint.manage` |
@@ -304,7 +304,7 @@ authorize(ctx: RequestContext, action: Action, resource: Resource): Decision
 - **所有者隐式拥有全部业务能力**：身份 `owner` 视为在所有资源上持有 `blueprint.manage` 与 `blueprint.publish`，无需也不应给自己写入 `capabilities` 行（否则平台无法自举，且会与「身份与能力正交」在语义上打架：正交描述的是*可被叠加*，不是*必须显式授予*）。
 - **命名空间拒绝与同级拒绝用不同错误码**：`member` 访问 `/api/users/*`、`/api/admins/*`、`/api/owner/*` 一律 `FORBIDDEN`；用户管理员触碰同级/上级用 `PEER_MANAGE_DENIED`；碰自己名外的用户用 `OUT_OF_MANAGED_SCOPE`；触碰所有者用 `OWNER_PROTECTED`；碰自己（经用户管理接口）用 `SELF_MANAGE_DENIED`。这几个码必须各归其位，否则前端无法区分「你没资格用这个页面」和「这个用户不归你管」。
 
-**十二条服务端不变量**（`docs/permission-design.md` §4）在实现中的落点：
+**十三条服务端不变量**（`docs/permission-design.md` §4）在实现中的落点：
 
 | 不变量 | 落点 |
 | --- | --- |
@@ -933,7 +933,7 @@ can('user.create')                          // 装配页头主操作
 | 7 | 会话无 TTL、无法吊销 | `sessions` 表 + TTL + 停用/改密/移权即吊销 | §3.4 |
 | 8 | 用户表为空即开放 setup；明文口令；默认密码 `123456`；无登录限流 | 初始所有者由环境变量注入；scrypt 哈希；新建用户一次性初始密码 + 强制改密；登录双维度限流 | §3.4 |
 | 9 | 前端 `isAuthenticated` 仅凭本地 userId；撤权后仍渲染缓存 | 会话与权限只来自 `GET /api/me`；401 统一处理；撤权后作废缓存 | §5.6、§6.2 |
-| 10 | 同级可互撤权限、可重置口令、可移除最后管理员；`manage` 混淆多种动作；删除分组改变可见性 | 策略表（§3.5）+ 十二条不变量 + 增量授权 + 事务化资源移动 | §3.5 |
+| 10 | 同级可互撤权限、可重置口令、可移除最后管理员；`manage` 混淆多种动作；删除分组改变可见性 | 策略表（§3.5）+ 十三条不变量 + 增量授权 + 事务化资源移动 | §3.5 |
 | 11 | 上传包未校验（新增能力带来的新面） | ZIP 校验：拒绝绝对路径/`..`/符号链接、条目数与总大小上限、必需入口、禁止可执行文件；原子落盘 | §3.6 |
 | 12 | 日志与审计可能泄露敏感内容 | 日志脱敏（不记令牌/密码/产物正文）；审计只记哈希与大小 | §3.8 |
 
@@ -946,7 +946,7 @@ can('user.create')                          // 装配页头主操作
 | 阶段 | 交付物 | 验收 |
 | --- | --- | --- |
 | M0 契约与骨架 | `packages/contracts`（schema + 生成器）、Fastify 骨架、配置校验、迁移器、健康检查、CI（类型 + lint + 生成物同步） | `GET /api/health` 通；迁移可重复执行；缺配置启动即失败 |
-| M1 身份与权限底座 | users/identity/grants/capabilities/sessions、`domain/policy.ts`、审计 | 权限矩阵参数化测试全绿；十二条不变量各有失败用例 |
+| M1 身份与权限底座 | users/identity/grants/capabilities/sessions、`domain/policy.ts`、审计 | 权限矩阵参数化测试全绿；十三条不变量各有失败用例 |
 | M2 蓝图与产物 | 分组/蓝图/版本、ZIP 上传与覆盖、多文件产物服务、预览票据与预览域、**归档与恢复** | 未持票据访问产物 403；撤权后立即 403；穿越用例全部拒绝；覆盖可回滚；"删除"一律落为归档且可恢复，产物不被物理删除 |
 | M3 MCP 服务 | Streamable HTTP 端点、Token 校验、工具集、审计、stdio 入口 | 规范握手与工具调用通过；MCP 调用的权限结果与 HTTP 完全一致 |
 | M4 前端重构 | preset/tokens、AppShell、P2/P3/P4/P5/P6/P8、冲突与一次性信息交互 | 原型交互缺陷逐条复核通过；无 `identity ===` 业务分支；表头与行列一致 |

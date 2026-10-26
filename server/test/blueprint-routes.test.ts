@@ -495,7 +495,7 @@ test('场景3：GET /api/blueprint-groups —— 只返回授权范围内的分�
 
 // ── 场景 4：POST /api/blueprint-groups ──────────────────────────────────────
 
-test('场景4：POST /api/blueprint-groups —— 缺能力 403、重名 409、成功建组并补授权', async () => {
+test('场景4：POST /api/blueprint-groups —— 仅所有者可建组、重名 409、不写授权行', async () => {
   const harness = await makeHarness();
 
   const denied = await inject(harness.context, {
@@ -504,7 +504,7 @@ test('场景4：POST /api/blueprint-groups —— 缺能力 403、重名 409、�
     cookie: harness.member.cookie,
     payload: { name: '成员想建的组' },
   });
-  await expectErrorCode(denied, 403, 'CAPABILITY_REQUIRED');
+  await expectErrorCode(denied, 403, 'FORBIDDEN');
 
   const created = await inject(harness.context, {
     method: 'POST',
@@ -540,7 +540,8 @@ test('场景4：POST /api/blueprint-groups —— 缺能力 403、重名 409、�
     [],
   );
 
-  // 只持 blueprint.manage 的用户也能建组（group.create 判的是「是否持有该能力」）
+  // 建组 = 划新地盘，只有所有者能做（docs/permission-design.md §2.3）：
+  // 持 blueprint.manage 的用户管理员也不行，否则「管辖一个组」会自我扩张成「可以无限建组」。
   await grantCapability(harness.context, harness.admin.id, 'blueprint.manage', 'group', DEFAULT_GROUP_ID, harness.owner.id);
   const adminCreated = await inject(harness.context, {
     method: 'POST',
@@ -548,16 +549,7 @@ test('场景4：POST /api/blueprint-groups —— 缺能力 403、重名 409、�
     cookie: harness.admin.cookie,
     payload: { name: '市场组', sortOrder: 30 },
   });
-  expectStatus(adminCreated, 200);
-  const adminGroup = dataOf<{ group: { id: string; sortOrder: number } }>(adminCreated).group;
-  assert.equal(adminGroup.sortOrder, 30);
-  const adminGrants = await harness.context.db
-    .selectFrom('view_grants')
-    .selectAll()
-    .where('target_type', '=', 'group')
-    .where('target_id', '=', adminGroup.id)
-    .execute();
-  assert.deepEqual(adminGrants.map((row) => row.user_id), [harness.admin.id]);
+  await expectErrorCode(adminCreated, 403, 'FORBIDDEN');
 });
 
 // ── 场景 5：PATCH /api/blueprint-groups/reorder ─────────────────────────────

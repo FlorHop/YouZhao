@@ -181,13 +181,14 @@ function judge(
       }
       return deny('FORBIDDEN', '只能操作自己创建或被绑定到你名下的 Token');
     }
-    // ── 分组：需要覆盖目标范围的 blueprint.manage ────────────────────────────
+    // ── 分组：改既有分组要覆盖它；建新分组只有所有者（§2.3）────────────────
     case 'group.create':
-      if (ctx.identity === 'owner') return allow();
-      // 新分组尚无 id：只要在任一资源上持有 blueprint.manage 即可建组，建组后自动落入其范围
-      return hasAnyCapability(ctx.capabilities, 'blueprint.manage')
+      // 建组 = 划一块新地盘。管辖是所有者给定的边界，不能自己往前延伸：
+      // 否则「管辖一个组」就能推出「可以无限建组并自动带发版权」（自我扩张）。
+      // 管理员需要新分组时向所有者申请；所有者建组后用管辖把组交给他。
+      return ctx.identity === 'owner'
         ? allow()
-        : deny('CAPABILITY_REQUIRED', '新建分组需要 blueprint.manage');
+        : deny('FORBIDDEN', '只有平台所有者可以新建分组');
     case 'group.archive':
     case 'group.restore':
     case 'group.reorder':

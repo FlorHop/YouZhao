@@ -289,47 +289,60 @@ test('「只维护不发版」：能力表只给 manage 时建不了蓝图，也
   }
 });
 
-test('建组自授：只会维护的人建完组仍无发版权；建组者拿到的管辖/能力写到本人名下', async () => {
+test('建组只有所有者能做：有管辖的管理员也不能自己开新组，建组不再自动写任何授权', async () => {
   const harness = await makeHarness();
+  // 先给管理员一份真实管辖：按旧行为，这会让他「有地盘可扩」
+  await setJurisdiction(harness, harness.admin.id, { groupIds: [G_OPS], blueprintIds: [] });
+
+  const byAdmin = await call(harness, 'POST', '/api/blueprint-groups', harness.admin.cookie, {
+    name: '周予安想自己开的分组',
+  });
+  await expectErrorCode(byAdmin, 403, 'FORBIDDEN');
+
+  // 只持 blueprint.manage 的用户管理员同样不行
   await call(harness, 'PUT', `/api/users/${harness.admin.id}/capabilities`, harness.owner.cookie, {
     capabilities: [{ capability: 'blueprint.manage', targetType: 'group', targetId: G_OPS }],
   });
+  const manageOnly = await call(harness, 'POST', '/api/blueprint-groups', harness.admin.cookie, {
+    name: '只维护也别想建组',
+  });
+  await expectErrorCode(manageOnly, 403, 'FORBIDDEN');
 
-  const created = await call(harness, 'POST', '/api/blueprint-groups', harness.admin.cookie, {
-    name: '周予安新建的分组',
+  // 所有者建组：成功，且不写 view_grants / capabilities / group_managers（所有者隐式全可见）
+  const created = await call(harness, 'POST', '/api/blueprint-groups', harness.owner.cookie, {
+    name: '所有者开的分组',
   });
   assert.equal(created.statusCode, 200, created.body);
   const groupId = (created.json() as { data: { group: { id: string } } }).data.group.id;
 
-  const me = await meOf(harness, harness.admin);
-  assert.deepEqual(me.data.jurisdiction.groupIds, []);
-  assert.ok(
-    me.data.capabilities.some(
-      (item) =>
-        item.capability === 'blueprint.manage' && item.targetType === 'group' && item.targetId === groupId,
-    ),
-    '只会维护的人建组后应得到该组的 blueprint.manage 例外授权',
-  );
+  const [grantRows, capabilityRows, managerRows] = await Promise.all([
+    harness.context.db
+      .selectFrom('view_grants')
+      .selectAll()
+      .where('target_type', '=', 'group')
+      .where('target_id', '=', groupId)
+      .execute(),
+    harness.context.db
+      .selectFrom('capabilities')
+      .selectAll()
+      .where('target_type', '=', 'group')
+      .where('target_id', '=', groupId)
+      .execute(),
+    harness.context.db
+      .selectFrom('group_managers')
+      .selectAll()
+      .where('group_id', '=', groupId)
+      .execute(),
+  ]);
+  assert.deepEqual(grantRows, []);
+  assert.deepEqual(capabilityRows, []);
+  assert.deepEqual(managerRows, []);
 
+  // 新组默认谁也不归：管理员要在这里建蓝图，得由所有者先把组交给他
   assert.equal(
     await decisionFor(harness, harness.admin.id, 'blueprint.create', { kind: 'group', groupId }),
     'CAPABILITY_REQUIRED',
-    '建了组也不能发版',
   );
-
-  const capabilityRows = await harness.context.db
-    .selectFrom('capabilities')
-    .selectAll()
-    .where('user_id', '=', harness.admin.id)
-    .where('target_id', '=', groupId)
-    .execute();
-  assert.equal(capabilityRows.length, 1);
-  assert.equal(capabilityRows[0]?.granted_by, harness.admin.id);
-
-  const managerRows = await harness.context.db
-    .selectFrom('group_managers')
-    .selectAll()
-    .where('user_id', '=', harness.admin.id)
-    .execute();
-  assert.equal(managerRows.length, 0, '没有发版权时不应落管辖');
+  const me = await meOf(harness, harness.admin);
+  assert.deepEqual(me.data.jurisdiction.groupIds, [G_OPS], '建组不再自动把新组并进任何人的管辖');
 });

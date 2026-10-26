@@ -152,6 +152,8 @@ const dialogOpen = computed(
 );
 
 const canManageAnywhere = computed(() => session.hasCapability('blueprint.manage'));
+/** 建组 = 划新地盘，只有所有者能做（docs/permission-design.md §2.3） */
+const canCreateGroup = computed(() => session.isOwner);
 const canPublishAnywhere = computed(() => session.canPublishAnywhere);
 const filtersActive = computed(
   () => keyword.value.trim() !== '' || groupFilter.value !== '' || statusFilter.value !== 'active',
@@ -865,7 +867,7 @@ function openPreview(card: BlueprintCardRow, version: string): void {
       <span class="toolbar-spacer" />
       <span v-if="refreshing" class="caption">正在刷新…</span>
       <Button
-        v-if="canManageAnywhere"
+        v-if="canCreateGroup"
         label="新建分组"
         icon="pi pi-folder"
         outlined

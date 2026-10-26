@@ -281,7 +281,7 @@ test('MCP：tools/call 走用例层，返回 structuredContent；只读令牌调
   }
 });
 
-test('MCP：成员令牌无 blueprint.manage → 建分组被策略拒绝（CAPABILITY_REQUIRED）', async () => {
+test('MCP：成员令牌建分组被策略拒绝（FORBIDDEN——建组仅所有者）', async () => {
   const world = await makeWorld();
   try {
     const reply = await rpc(
@@ -294,13 +294,14 @@ test('MCP：成员令牌无 blueprint.manage → 建分组被策略拒绝（CAPA
       },
       { token: world.memberToken, modern: true, method: 'tools/call', name: 'youzhao.create_blueprint_group' },
     );
-    // 凭证与 scope 问题才是 HTTP 401/403；**业务能力不足**是工具级失败：
-    // HTTP 200 + result.isError（MCP 惯例，让模型看得见失败原因）
+    // 凭证与 scope 问题才是 HTTP 401/403；**策略拒绝**是工具级失败：
+    // HTTP 200 + result.isError（MCP 惯例，让模型看得见失败原因）。
+    // 建组自 2026-10-26 起仅所有者可做（permission-design §2.3），因此是 FORBIDDEN 而非缺能力。
     assert.equal(reply.status, 200);
     const result = resultOf(reply);
     assert.equal(result.isError, true);
     const structured = result.structuredContent as { error: { code: string } };
-    assert.equal(structured.error.code, 'CAPABILITY_REQUIRED');
+    assert.equal(structured.error.code, 'FORBIDDEN');
   } finally {
     await world.close();
   }
