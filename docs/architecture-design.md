@@ -210,7 +210,9 @@ MCP 与 HTTP 共享 `app/`、`domain/`、`storage/`，**不共享** HTTP 上下�
 | `user_managers` | `user_id → users.id, manager_user_id → users.id, created_at`，主键 `(user_id, manager_user_id)` | 归属关系**多对多**（S7）：一个用户可被多位用户管理员管理；无行 = 暂未指派。只有所有者可增删行（改派 = 整体替换集合） |
 | `user_identity` | `user_id PK → users.id, identity(owner/user_admin/member), granted_by, granted_at` | 互斥身份单行表；`owner` 全库唯一（部分唯一索引） |
 | `view_grants` | `id, user_id, target_type(group/blueprint), target_id, granted_by, created_at`，唯一键 `(user_id,target_type,target_id)` | 蓝图查看范围；**同时是用户管理员的可委派范围**（S1） |
-| `capabilities` | `id, user_id, capability(blueprint.manage/blueprint.publish), target_type(group/blueprint), target_id, granted_by, created_at`，唯一键 `(user_id,capability,target_type,target_id)` | 业务能力必须带资源范围 |
+| `capabilities` | `id, user_id, capability(blueprint.manage/blueprint.publish), target_type(group/blueprint), target_id, granted_by, created_at`，唯一键 `(user_id,capability,target_type,target_id)` | **例外**业务能力，必须带资源范围（常规写权来自管辖，见下两行） |
+| `group_managers` | `group_id → blueprint_groups.id, user_id → users.id, granted_by, created_at`，主键 `(group_id,user_id)` | 分组管辖（地盘，迁移 `0006_jurisdiction.sql`）：派生该组上的 `blueprint.publish` + `blueprint.manage` 与可见；只对 `user_admin` 生效，仅所有者可写 |
+| `blueprint_managers` | `blueprint_id → blueprints.id, user_id → users.id, granted_by, created_at`，主键 `(blueprint_id,user_id)` | 单蓝图管辖：只派生该蓝图的 `blueprint.manage` + 可见，**不**派生「在该分组内新建」 |
 | `mcp_tokens` | `id, name, token_hash, token_prefix, bound_user_id, created_by_user_id, scopes TEXT[], status(active/disabled), expires_at NULL, last_used_at, created_at` | 明文只在创建响应中出现一次；绑定用户由创建者指定（O 可为他人创建，S6） |
 | `sessions` | `id, token_hash, user_id, created_at, expires_at, revoked_at NULL, last_seen_at, user_agent, ip` | 支持立刻吊销 |
 | `blueprint_groups` | `id, name UNIQUE, is_default, sort_order, created_at, archived_at NULL` | 默认分组不可归档、恒首位；归档非默认分组时其下蓝图回落默认分组（同事务） |
@@ -225,6 +227,7 @@ MCP 与 HTTP 共享 `app/`、`domain/`、`storage/`，**不共享** HTTP 上下�
 - 一个用户最多一个身份（`user_identity` 单行）；`owner` 全库恰好一个（部分唯一索引 + 应用层 `LAST_OWNER_PROTECTED`）。
 - 归属（`user_managers`，**多对多**）与身份（`user_identity`）**分开**：被指派给一位或多位用户管理员的用户，其身份通常是 `member`；任一归属管理员都能管理它，但只有所有者能改派或删除（S2、S7）。
 - 业务能力（`capabilities`）与身份**正交**：用户管理员也可以被叠加 `blueprint.manage`（S4）。
+- 管辖（`group_managers` / `blueprint_managers`）与例外授权**分表**：管辖由所有者「划地盘」，只在 `user_admin` 上生效并派生写权；`capabilities` 只做加法。有效能力 = 两者并集（`docs/permission-design.md` §2.3）。
 - 查看范围（`view_grants`）与可委派范围是**同一集合**（S1）：**不设** `admin_delegations` 表，用户管理员的可委派范围 = 他在 `view_grants` 中的有效查看范围；他只能在这个集合内为自己管理的用户授予查看权。
 
 **范围解析**（`domain/scopes.ts` 唯一实现）：
@@ -232,7 +235,10 @@ MCP 与 HTTP 共享 `app/`、`domain/`、`storage/`，**不共享** HTTP 上下�
 ```text
 effectiveViewScope(user)      = view_grants(user)                  // 分组 ∪ 蓝图
 delegableScope(userAdmin)     = view_grants(userAdmin)            // = 其查看范围（S1）
-businessCapabilities(user)    = capabilities(user)                 // 每项带资源范围
+jurisdiction(userAdmin)       = group_managers(user) ∪ blueprint_managers(user)
+effectiveCapabilities(user)   = capabilities(user)                 // 例外授权
+                              ∪ derive(jurisdiction(user))         // 分组⇒publish+manage；单蓝图⇒manage
+                              // 并集去重，管辖不被能力表削减；owner 由 policy 短路隐式全权
 canView(user, blueprint)      = blueprint ∈ effectiveViewScope(user)
                                ∨ blueprint ∈ businessCapabilityResources(user)
 ```
@@ -265,7 +271,7 @@ authorize(ctx: RequestContext, action: Action, resource: Resource): Decision
 // Decision = { allow: true } | { allow: false, code: ErrorCode, reason: string }
 ```
 
-`ctx` 由会话/Token 解析产出，包含：`identity`、`userId`、`managedUserIds`、`viewScope`、`delegableScope`、`capabilities[]`、`tokenScopes`（MCP 时）。
+`ctx` 由会话/Token 解析产出，包含：`identity`、`userId`、`managedUserIds`、`viewScope`、`delegableScope`、`capabilities[]`（**有效能力** = 管辖派生 ∪ 例外授权）、`jurisdiction`（仅展示/审计用）、`tokenScopes`（MCP 时）。
 
 动作分类与判定要点：
 
@@ -278,6 +284,7 @@ authorize(ctx: RequestContext, action: Action, resource: Resource): Decision
 | `admin.manage`（指派用户管理员的委派范围） | 仅所有者 |
 | `grant.view.add` / `grant.view.remove` | 所有者；或用户管理员且**目标用户在自己名下**且**授权资源 ⊆ 自己的可委派范围**（S1） |
 | `capability.grant`（`blueprint.manage` / `blueprint.publish`） | 仅所有者（用户管理员不得授予业务能力；其自身能力由所有者叠加） |
+| `jurisdiction.read` / `jurisdiction.set`（管辖） | 仅所有者；`set` 的目标必须是 `user_admin`（所有者隐式全权、普通用户走例外授权），整体替换两张管辖表（`docs/permission-design.md` §2.3） |
 | `group.create` | 任一被授权资源上的 `blueprint.manage`（新分组自动落在其范围内，或由所有者显式授权） |
 | `group.delete` / `group.reorder` | 该分组上的 `blueprint.manage`；删除需同时校验分组内全部蓝图的 `blueprint.manage` |
 | `blueprint.create` | 目标分组上的 `blueprint.publish` |

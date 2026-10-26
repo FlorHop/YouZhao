@@ -51,6 +51,10 @@ export const useSessionStore = defineStore('session', () => {
   const viewGrants = computed(() => me.value?.viewGrants ?? []);
   const delegableScopes = computed(() => me.value?.delegableScopes ?? []);
   const capabilities = computed(() => me.value?.capabilities ?? []);
+  /** 我管辖的分组 / 单蓝图（仅用户管理员会有内容；管辖派生写权在 capabilities 里已生效）。 */
+  const jurisdiction = computed(
+    () => me.value?.jurisdiction ?? { groupIds: [] as string[], blueprintIds: [] as string[] },
+  );
 
   function apply(data: SessionData): void {
     me.value = data;
@@ -157,6 +161,7 @@ export const useSessionStore = defineStore('session', () => {
     viewGrants,
     delegableScopes,
     capabilities,
+    jurisdiction,
     canPublishAnywhere,
     apply,
     clear,

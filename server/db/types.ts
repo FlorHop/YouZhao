@@ -5,7 +5,9 @@
  * `0001_init.sql` 建 `app_settings`；`0002_identity.sql` 建 users / user_identity /
  * user_managers / blueprint_groups / view_grants / capabilities / sessions / audit_logs；
  * `0003_blueprints_tokens.sql` 建 blueprints / blueprint_versions / mcp_tokens /
- * preview_tickets；`0004_mcp_idempotency.sql` 建 mcp_idempotency；`schema_migrations` 由
+ * preview_tickets；`0004_mcp_idempotency.sql` 建 mcp_idempotency；`0005_audit_token.sql`
+ * 给 audit_logs 加 token_id；`0006_jurisdiction.sql` 建 group_managers / blueprint_managers
+ * （管理员管辖范围，与 capabilities 的例外授权分表）；`schema_migrations` 由
  * `db/migrate.ts` 的 ensureMigrationsTable 建。
  * 改列时先写新迁移文件（历史迁移不可修改），再同步本文件；两边不一致会让 Kysely
  * 在编译期放过实际会失败的语句（或拒绝合法的写入）。
@@ -93,6 +95,22 @@ export interface CapabilitiesTable {
   /** check (target_type in ('group','blueprint')) */
   target_type: string;
   target_id: string;
+  granted_by: string;
+  created_at: Timestamp;
+}
+
+/** 分组管辖（0006）：管理员的地盘，派生发布 + 维护能力并覆盖组内蓝图 */
+export interface GroupManagersTable {
+  group_id: string;
+  user_id: string;
+  granted_by: string;
+  created_at: Timestamp;
+}
+
+/** 单个蓝图的管辖（0006）：只派生 blueprint.manage，不派生「在该组内新建」 */
+export interface BlueprintManagersTable {
+  blueprint_id: string;
+  user_id: string;
   granted_by: string;
   created_at: Timestamp;
 }
@@ -230,6 +248,8 @@ export interface Database {
   user_managers: UserManagersTable;
   view_grants: ViewGrantsTable;
   capabilities: CapabilitiesTable;
+  group_managers: GroupManagersTable;
+  blueprint_managers: BlueprintManagersTable;
   sessions: SessionsTable;
   audit_logs: AuditLogsTable;
   blueprint_groups: BlueprintGroupsTable;
@@ -261,6 +281,12 @@ export type NewViewGrant = Insertable<ViewGrantsTable>;
 
 export type CapabilityRow = Selectable<CapabilitiesTable>;
 export type NewCapability = Insertable<CapabilitiesTable>;
+
+export type GroupManagerRow = Selectable<GroupManagersTable>;
+export type NewGroupManager = Insertable<GroupManagersTable>;
+
+export type BlueprintManagerRow = Selectable<BlueprintManagersTable>;
+export type NewBlueprintManager = Insertable<BlueprintManagersTable>;
 
 export type SessionRow = Selectable<SessionsTable>;
 export type NewSession = Insertable<SessionsTable>;

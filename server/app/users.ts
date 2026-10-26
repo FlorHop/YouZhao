@@ -18,6 +18,7 @@ import type {
   SetManagedByRequest,
   SetUserCapabilitiesRequest,
   SetUserIdentityRequest,
+  SetUserJurisdictionRequest,
   UpdateUserRequest,
   UserGrantsChangeRequest,
 } from '@youzhao/contracts/types';
@@ -37,7 +38,7 @@ import { AppError, isAppError } from '../domain/errors.js';
 import { newId } from '../domain/ids.js';
 import { assertAcceptablePassword, hashPassword } from '../domain/password.js';
 import { assertAuthorized } from '../domain/policy.js';
-import { dedupeCapabilities, dedupeScopes, isScopeSubset } from '../domain/scopes.js';
+import { dedupeCapabilities, dedupeScopes, effectiveCapabilities, isScopeSubset } from '../domain/scopes.js';
 import { revokeAllSessionsForUser } from './session.js';
 
 /** 分页上限与默认值（与契约 `meta.pageSize` 的 `max: 100` 对齐）。 */
@@ -952,5 +953,264 @@ export async function setUserCapabilities(
       targetType: cap.targetType,
       targetId: cap.targetId,
     }));
+  });
+}
+
+// ────────────────────────────── 管辖（仅所有者，整体替换） ──────────────────────────────
+
+/** 分组管辖视图（对齐契约 `users/jurisdiction.json`）。 */
+export interface JurisdictionGroupView {
+  readonly id: string;
+  readonly name: string;
+  readonly grantedByUserId: string;
+  readonly grantedByDisplayName: string;
+  readonly grantedAt: string;
+}
+
+/** 单蓝图管辖视图（对齐契约 `users/jurisdiction.json`）。 */
+export interface JurisdictionBlueprintView {
+  readonly id: string;
+  readonly name: string;
+  readonly groupId: string;
+  readonly groupName: string;
+  readonly grantedByUserId: string;
+  readonly grantedByDisplayName: string;
+  readonly grantedAt: string;
+}
+
+export interface JurisdictionView {
+  readonly groups: JurisdictionGroupView[];
+  readonly blueprints: JurisdictionBlueprintView[];
+}
+
+/** `GET /api/users/:id/access` 的视图（对齐契约 `users/access.json`）。 */
+export interface UserAccessView {
+  /** 例外授权的原始行（不含管辖派生项）。 */
+  readonly capabilities: CapabilityView[];
+  /** 有效能力 = 管辖派生 ∪ 例外授权（判定依据）。 */
+  readonly effectiveCapabilities: CapabilityView[];
+  readonly jurisdiction: JurisdictionView;
+}
+
+const EMPTY_JURISDICTION: JurisdictionView = { groups: [], blueprints: [] };
+
+function capabilityViews(caps: readonly CapabilityGrant[]): CapabilityView[] {
+  return caps
+    .map((cap) => ({
+      capability: cap.capability,
+      targetType: cap.targetType,
+      targetId: cap.targetId,
+    }))
+    .sort((left, right) =>
+      `${left.capability}:${left.targetType}:${left.targetId}`.localeCompare(
+        `${right.capability}:${right.targetType}:${right.targetId}`,
+      ),
+    );
+}
+
+function capabilityGrantOfRows(
+  rows: readonly { capability: string; target_type: string; target_id: string }[],
+): CapabilityGrant[] {
+  return dedupeCapabilities(
+    rows.map((row) => ({
+      capability: row.capability as CapabilityName,
+      targetType: row.target_type as TargetType,
+      targetId: row.target_id,
+    })),
+  );
+}
+
+/**
+ * 读取管辖范围：原始行 + 资源名 + 划拨人。
+ * `identity` 传入时会按身份过滤——管辖只对用户管理员生效，其它身份一律视为空。
+ */
+export async function loadJurisdictionView(
+  db: Db,
+  userId: string,
+  identity?: Identity,
+): Promise<JurisdictionView> {
+  if (identity !== undefined && identity !== 'user_admin') return EMPTY_JURISDICTION;
+
+  const [groupManagerRows, blueprintManagerRows] = await Promise.all([
+    db.selectFrom('group_managers').selectAll().where('user_id', '=', userId).execute(),
+    db.selectFrom('blueprint_managers').selectAll().where('user_id', '=', userId).execute(),
+  ]);
+  if (groupManagerRows.length === 0 && blueprintManagerRows.length === 0) {
+    return EMPTY_JURISDICTION;
+  }
+
+  const groupIds = [...new Set(groupManagerRows.map((row) => row.group_id))];
+  const blueprintIds = [...new Set(blueprintManagerRows.map((row) => row.blueprint_id))];
+  const managedBlueprints =
+    blueprintIds.length === 0
+      ? []
+      : await db
+          .selectFrom('blueprints')
+          .select(['id', 'name', 'group_id'])
+          .where('id', 'in', blueprintIds)
+          .execute();
+
+  // 蓝图所属分组可能不在管辖集合里，所以分组名从「管辖分组 ∪ 蓝图所属分组」一起取
+  const relatedGroupIds = [
+    ...new Set([...groupIds, ...managedBlueprints.map((row) => row.group_id)]),
+  ];
+  const relatedGroups =
+    relatedGroupIds.length === 0
+      ? []
+      : await db
+          .selectFrom('blueprint_groups')
+          .select(['id', 'name'])
+          .where('id', 'in', relatedGroupIds)
+          .execute();
+  const groupNameById = new Map(relatedGroups.map((row) => [row.id, row.name]));
+  const blueprintById = new Map(managedBlueprints.map((row) => [row.id, row]));
+
+  const granterIds = [
+    ...new Set([
+      ...groupManagerRows.map((row) => row.granted_by),
+      ...blueprintManagerRows.map((row) => row.granted_by),
+    ]),
+  ];
+  const granters =
+    granterIds.length === 0
+      ? []
+      : await db
+          .selectFrom('users')
+          .select(['id', 'display_name'])
+          .where('id', 'in', granterIds)
+          .execute();
+  const granterNameById = new Map(granters.map((row) => [row.id, row.display_name]));
+
+  return {
+    groups: groupManagerRows
+      .map((row) => ({
+        id: row.group_id,
+        name: groupNameById.get(row.group_id) ?? '（未知分组）',
+        grantedByUserId: row.granted_by,
+        grantedByDisplayName: granterNameById.get(row.granted_by) ?? DELETED_GRANTER_LABEL,
+        grantedAt: row.created_at.toISOString(),
+      }))
+      .sort((left, right) => left.name.localeCompare(right.name, 'zh-Hans-CN')),
+    blueprints: blueprintManagerRows
+      .map((row) => {
+        const blueprint = blueprintById.get(row.blueprint_id);
+        return {
+          id: row.blueprint_id,
+          name: blueprint?.name ?? '（未知蓝图）',
+          groupId: blueprint?.group_id ?? '',
+          groupName: groupNameById.get(blueprint?.group_id ?? '') ?? '（未知分组）',
+          grantedByUserId: row.granted_by,
+          grantedByDisplayName: granterNameById.get(row.granted_by) ?? DELETED_GRANTER_LABEL,
+          grantedAt: row.created_at.toISOString(),
+        };
+      })
+      .sort((left, right) => left.name.localeCompare(right.name, 'zh-Hans-CN')),
+  };
+}
+
+/** 某位用户的完整写权限视图：例外授权、有效能力、管辖范围（仅所有者）。 */
+export async function getUserAccess(
+  db: Db,
+  ctx: RequestContext,
+  userId: string,
+  audit: UserAudit,
+): Promise<UserAccessView> {
+  const target: AuditTarget = { targetType: 'user', targetId: userId };
+  return audited(db, ctx, 'jurisdiction.read', target, audit, async () => {
+    assertAuthorized(ctx, 'user.list');
+    const facts = await requireUserFacts(db, userId);
+    assertAuthorized(ctx, 'jurisdiction.read', { kind: 'jurisdiction', target: facts });
+
+    const [capabilityRows, jurisdiction] = await Promise.all([
+      db.selectFrom('capabilities').selectAll().where('user_id', '=', userId).execute(),
+      loadJurisdictionView(db, userId, facts.identity),
+    ]);
+    const granted = capabilityGrantOfRows(capabilityRows);
+    return {
+      capabilities: capabilityViews(granted),
+      effectiveCapabilities: capabilityViews(
+        effectiveCapabilities(granted, {
+          groupIds: jurisdiction.groups.map((group) => group.id),
+          blueprintIds: jurisdiction.blueprints.map((blueprint) => blueprint.id),
+        }),
+      ),
+      jurisdiction,
+    };
+  });
+}
+
+/**
+ * 整体替换某位用户管理员的管辖范围（仅所有者）。
+ *
+ * 纪律：
+ * - 管辖只对 `user_admin` 生效（策略层拦住其它身份），避免把「地盘」发给普通用户；
+ * - 目标必须真实存在：填错 id 直接 `INVALID_ARGUMENT`，不静默落一条悬空管辖；
+ * - 删旧插新同一事务，失败整体回滚；
+ * - 这里**不**顺带写 `view_grants`：管辖只带来写权与可见，可委派范围仍由所有者显式给查看授权（§2.3）。
+ */
+export async function setUserJurisdiction(
+  db: Db,
+  ctx: RequestContext,
+  userId: string,
+  input: SetUserJurisdictionRequest,
+  audit: UserAudit,
+): Promise<JurisdictionView> {
+  const target: AuditTarget = { targetType: 'user', targetId: userId };
+  return audited(db, ctx, 'jurisdiction.set', target, audit, async () => {
+    assertAuthorized(ctx, 'user.list');
+    const facts = await requireUserFacts(db, userId);
+
+    const groupIds = [...new Set(input.groupIds)].sort();
+    const blueprintIds = [...new Set(input.blueprintIds)].sort();
+    assertAuthorized(ctx, 'jurisdiction.set', {
+      kind: 'jurisdiction',
+      target: facts,
+      requested: { groupIds, blueprintIds },
+    });
+
+    const [knownGroups, knownBlueprints] = await Promise.all([
+      groupIds.length === 0
+        ? []
+        : db.selectFrom('blueprint_groups').select('id').where('id', 'in', groupIds).execute(),
+      blueprintIds.length === 0
+        ? []
+        : db.selectFrom('blueprints').select('id').where('id', 'in', blueprintIds).execute(),
+    ]);
+    const knownGroupIds = new Set(knownGroups.map((row) => row.id));
+    const knownBlueprintIds = new Set(knownBlueprints.map((row) => row.id));
+    const missingGroups = groupIds.filter((id) => !knownGroupIds.has(id));
+    const missingBlueprints = blueprintIds.filter((id) => !knownBlueprintIds.has(id));
+    if (missingGroups.length > 0 || missingBlueprints.length > 0) {
+      throw new AppError('INVALID_ARGUMENT', '管辖目标不存在', {
+        fields: [
+          ...missingGroups.map((id) => ({ path: '/groupIds', message: `分组不存在：${id}` })),
+          ...missingBlueprints.map((id) => ({
+            path: '/blueprintIds',
+            message: `蓝图不存在：${id}`,
+          })),
+        ],
+        missingGroups,
+        missingBlueprints,
+      });
+    }
+
+    await db.transaction().execute(async (trx) => {
+      await trx.deleteFrom('group_managers').where('user_id', '=', userId).execute();
+      await trx.deleteFrom('blueprint_managers').where('user_id', '=', userId).execute();
+      for (const groupId of groupIds) {
+        await trx
+          .insertInto('group_managers')
+          .values({ group_id: groupId, user_id: userId, granted_by: ctx.userId })
+          .execute();
+      }
+      for (const blueprintId of blueprintIds) {
+        await trx
+          .insertInto('blueprint_managers')
+          .values({ blueprint_id: blueprintId, user_id: userId, granted_by: ctx.userId })
+          .execute();
+      }
+    });
+
+    return await loadJurisdictionView(db, userId);
   });
 }

@@ -7,8 +7,9 @@
  *                            他人授予的授权只读展示、不提供勾选框（§3.2）。
  *   区段二「管理员与可委派范围」仅所有者；可委派范围**不单独设置**，等于该管理员自己在区段一被授予的查看范围，
  *                            因此行内操作是「查看其范围」（`docs/architecture-design.md` §3.5）。
- *   区段三「业务能力」       仅所有者；能力必须带资源范围，没有「全部分组」默认值。
- *   区段四「权限矩阵说明」   纯静态文案（§9 文案规范）。
+ *   区段三「管辖范围」       仅所有者；管辖是「地盘」：分组管辖 ⇒ 发布 + 维护，单蓝图管辖 ⇒ 只维护。
+ *   区段四「业务能力」       仅所有者；例外授权（含「只维护不发版」），必须带资源范围。
+ *   区段五「权限矩阵说明」   纯静态文案（§9 文案规范）。
  *
  * 前端只负责不渲染越权入口，**不是安全边界**：每个请求仍由服务端逐条判定（设计 §11）。
  */
@@ -18,6 +19,7 @@ import type {
   CapabilityName,
   CapabilityRef,
   ScopeRef,
+  UserAccessData,
   UserRow,
   ViewGrant,
 } from '@/services/endpoints';
@@ -38,11 +40,13 @@ import AdminDelegationSection from '@/components/permissions/AdminDelegationSect
 import CapabilityGrantDialog from '@/components/permissions/CapabilityGrantDialog.vue';
 import CapabilitySection from '@/components/permissions/CapabilitySection.vue';
 import GrantChangeBar from '@/components/permissions/GrantChangeBar.vue';
+import JurisdictionSection from '@/components/permissions/JurisdictionSection.vue';
 import PermissionMatrix from '@/components/permissions/PermissionMatrix.vue';
 import ScopeGrantPanel from '@/components/permissions/ScopeGrantPanel.vue';
 import { ApiError } from '@/services/api';
 import {
   changeUserGrants,
+  getUserAccess,
   listBlueprintGroups,
   listBlueprintsWithGroups,
   listUserGrants,
@@ -50,7 +54,6 @@ import {
   setUserCapabilities,
   setUserIdentity,
 } from '@/services/endpoints';
-import { formatDateTime } from '@/services/format';
 import { capabilityLabel, identityLabel, useSessionStore } from '@/stores/session';
 
 const session = useSessionStore();
@@ -111,7 +114,8 @@ const addAdminError = ref('');
 const capabilityDialogVisible = ref(false);
 const capabilitySubmitting = ref(false);
 const capabilityError = ref('');
-const capabilityState = ref<Map<string, CapabilityRef[]>>(new Map());
+/** 每个「非所有者」用户的写权限视图（例外授权 + 有效能力 + 管辖），来自 `GET /api/users/:id/access`。 */
+const accessById = ref<Map<string, UserAccessData>>(new Map());
 
 interface LocalCapabilityRecord {
   id: string;
@@ -119,7 +123,6 @@ interface LocalCapabilityRecord {
   userName: string;
   capabilityLabel: string;
   scopeLabel: string;
-  grantedAt: string;
   ref: CapabilityRef;
 }
 
@@ -251,6 +254,14 @@ const adminCandidates = computed(() =>
     .map((user) => ({ label: `${user.displayName}（${user.username}）`, value: user.id })),
 );
 
+/** 管辖区段只列用户管理员：管辖对他们生效，对成员与所有者都不适用。 */
+const adminUsers = computed(() =>
+  users.value
+    .filter((user) => user.identity === 'user_admin')
+    .map((user) => ({ id: user.id, displayName: user.displayName, username: user.username }))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName, 'zh-Hans-CN')),
+);
+
 const userOptions = computed(() =>
   users.value
     .filter((user) => user.identity !== 'owner' && user.id !== meId.value)
@@ -263,6 +274,11 @@ const groupOptions = computed(() =>
 
 const blueprintOptions = computed(() =>
   blueprints.value.map((item) => ({ label: item.name, value: item.id })),
+);
+
+/** 管辖对话框用：带 groupId，便于把蓝图归到分组名下面展示。 */
+const blueprintOptionsForJurisdiction = computed(() =>
+  blueprints.value.map((item) => ({ id: item.id, name: item.name, groupId: item.groupId })),
 );
 
 const usersEmpty = computed(
@@ -442,7 +458,7 @@ async function submitAddAdmin(userId: string): Promise<void> {
   }
 }
 
-// ── 区段三动作 ────────────────────────────────────────────────────────────
+// ── 区段四动作（业务能力 = 例外授权） ──────────────────────────────────────
 
 function openCapabilityDialog(): void {
   capabilityError.value = '';
@@ -453,25 +469,34 @@ function recordIdOf(userId: string, ref: CapabilityRef): string {
   return `${userId}:${ref.capability}:${ref.targetType}:${ref.targetId}`;
 }
 
-/**
- * 契约现状：本期没有「读取他人业务能力」的接口，`PUT /api/users/:id/capabilities`
- * 又是**整体替换**语义，因此当本地不知道该用户已有能力时，提交前必须先说明会覆盖。
- */
+/** 该用户**例外授权**的原始行（不含管辖派生项）。 */
+function capabilityRefsOf(userId: string): CapabilityRef[] {
+  return accessById.value.get(userId)?.capabilities ?? [];
+}
+
+async function refreshAccess(userId: string): Promise<void> {
+  const access = await getUserAccess(userId);
+  accessById.value = new Map(accessById.value).set(userId, access);
+}
+
+async function loadAccess(list: UserRow[]): Promise<void> {
+  const targets = list.filter((user) => user.identity !== 'owner' && user.id !== meId.value);
+  const entries = await Promise.all(
+    targets.map(async (user) => {
+      try {
+        return [user.id, await getUserAccess(user.id)] as const;
+      } catch {
+        return null;
+      }
+    }),
+  );
+  const map = new Map<string, UserAccessData>();
+  for (const entry of entries) if (entry !== null) map.set(entry[0], entry[1]);
+  accessById.value = map;
+}
+
 function submitCapability(userId: string, capability: CapabilityName, target: ScopeRef): void {
-  const known = capabilityState.value.get(userId) ?? [];
-  if (known.length > 0) {
-    void commitCapability(userId, capability, target);
-    return;
-  }
-  confirm.require({
-    header: '整体替换该用户的业务能力？',
-    message: '本期没有读取他人已有能力的接口。提交后，该用户的业务能力集合将被替换为你在本页维护的内容。',
-    acceptLabel: '继续提交',
-    rejectLabel: '取消',
-    accept: () => {
-      void commitCapability(userId, capability, target);
-    },
-  });
+  void commitCapability(userId, capability, target);
 }
 
 async function commitCapability(
@@ -479,7 +504,7 @@ async function commitCapability(
   capability: CapabilityName,
   target: ScopeRef,
 ): Promise<void> {
-  const next: CapabilityRef[] = (capabilityState.value.get(userId) ?? [])
+  const next: CapabilityRef[] = capabilityRefsOf(userId)
     .filter((item) => !(item.capability === capability && sameTarget(item, target)))
     .concat([{ capability, targetType: target.targetType, targetId: target.targetId }]);
 
@@ -487,7 +512,7 @@ async function commitCapability(
   capabilityError.value = '';
   try {
     await setUserCapabilities(userId, next);
-    capabilityState.value = new Map(capabilityState.value).set(userId, next);
+    await refreshAccess(userId);
     capabilityDialogVisible.value = false;
     rebuildCapabilityRecords();
     toast.add({ severity: 'success', summary: '已授予', detail: '业务能力已更新。', life: 3000 });
@@ -501,13 +526,13 @@ async function commitCapability(
 async function revokeCapability(recordId: string): Promise<void> {
   const record = capabilityRecords.value.find((item) => item.id === recordId);
   if (record === undefined) return;
-  const next = (capabilityState.value.get(record.userId) ?? []).filter(
+  const next = capabilityRefsOf(record.userId).filter(
     (item) => !(item.capability === record.ref.capability && sameTarget(item, record.ref)),
   );
   capabilitySubmitting.value = true;
   try {
     await setUserCapabilities(record.userId, next);
-    capabilityState.value = new Map(capabilityState.value).set(record.userId, next);
+    await refreshAccess(record.userId);
     rebuildCapabilityRecords();
     toast.add({ severity: 'success', summary: '已撤销', detail: '业务能力已更新。', life: 3000 });
   } catch (error) {
@@ -523,23 +548,23 @@ async function revokeCapability(recordId: string): Promise<void> {
 }
 
 function rebuildCapabilityRecords(): void {
-  const grantedAt = formatDateTime(new Date().toISOString());
   const records: LocalCapabilityRecord[] = [];
-  for (const [userId, refs] of capabilityState.value) {
+  for (const [userId, access] of accessById.value) {
     const userName = userById.value.get(userId)?.displayName ?? userId;
-    for (const ref of refs) {
+    for (const ref of access.capabilities) {
       records.push({
         id: recordIdOf(userId, ref),
         userId,
         userName,
         capabilityLabel: capabilityLabel(ref.capability),
         scopeLabel: scopeLabelOf(ref),
-        grantedAt,
         ref,
       });
     }
   }
-  capabilityRecords.value = records;
+  capabilityRecords.value = records.sort((a, b) =>
+    `${a.userName}:${a.scopeLabel}`.localeCompare(`${b.userName}:${b.scopeLabel}`, 'zh-Hans-CN'),
+  );
 }
 
 // ── 加载 ──────────────────────────────────────────────────────────────────
@@ -585,8 +610,12 @@ async function load(): Promise<void> {
     users.value = userList;
     groups.value = groupList.data.items;
     blueprints.value = blueprintList.items;
+    if (session.isOwner) {
+      // 只有所有者能读他人的写权限视图；管理员自己靠会话快照里的有效能力。
+      void loadAdminScope(userList);
+      await loadAccess(userList);
+    }
     rebuildCapabilityRecords();
-    if (session.isOwner) void loadAdminScope(userList);
     loaded.value = true;
   } catch (error) {
     loadError.value = apiMessage(error, '权限数据没能加载出来');
@@ -699,13 +728,19 @@ onMounted(async () => {
         />
       </section>
 
-      <!-- 区段二 / 区段三：仅平台所有者 -->
+      <!-- 区段二 / 三 / 四：仅平台所有者 -->
       <template v-if="session.isOwner">
         <AdminDelegationSection
           :rows="adminRows"
           :submitting="addAdminSubmitting"
           @view-scope="viewScope"
           @add="openAddAdmin"
+        />
+
+        <JurisdictionSection
+          :admins="adminUsers"
+          :groups="groupOptions.map((option) => ({ id: option.value, name: option.label }))"
+          :blueprints="blueprintOptionsForJurisdiction"
         />
 
         <CapabilitySection

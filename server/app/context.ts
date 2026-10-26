@@ -12,6 +12,7 @@
 import type {
   CapabilityGrant,
   Identity,
+  JurisdictionScope,
   RequestContext,
   ScopeRef,
   TargetType,
@@ -19,15 +20,30 @@ import type {
   UserFacts,
   UserStatus,
 } from '../domain/entities.js';
+import { emptyJurisdiction } from '../domain/entities.js';
 import { AppError } from '../domain/errors.js';
-import { dedupeCapabilities, dedupeScopes, delegableScope } from '../domain/scopes.js';
-import type { CapabilityRow, Db, UserRow, ViewGrantRow } from '../db/types.js';
+import {
+  dedupeCapabilities,
+  dedupeScopes,
+  delegableScope,
+  effectiveCapabilities,
+} from '../domain/scopes.js';
+import type {
+  BlueprintManagerRow,
+  CapabilityRow,
+  Db,
+  GroupManagerRow,
+  UserRow,
+  ViewGrantRow,
+} from '../db/types.js';
 
 export interface UserAuthz {
   readonly user: UserRow;
   readonly facts: UserFacts;
   readonly grants: readonly ViewGrantRow[];
   readonly capabilities: readonly CapabilityRow[];
+  /** 管辖范围原始行（`group_managers` / `blueprint_managers`），已按身份过滤。 */
+  readonly jurisdiction: JurisdictionScope;
 }
 
 /** 读取用户本身、身份、管理归属、查看授权与业务能力；用户不存在/已停用返回 `null`。 */
@@ -39,20 +55,23 @@ export async function loadUserAuthz(db: Db, userId: string): Promise<UserAuthz |
     .executeTakeFirst();
   if (user === undefined || user.status !== 'active') return null;
 
-  const [identityRow, managerRows, grants, capabilities] = await Promise.all([
-    db
-      .selectFrom('user_identity')
-      .select(['identity'])
-      .where('user_id', '=', userId)
-      .executeTakeFirst(),
-    db
-      .selectFrom('user_managers')
-      .select(['manager_user_id'])
-      .where('user_id', '=', userId)
-      .execute(),
-    db.selectFrom('view_grants').selectAll().where('user_id', '=', userId).execute(),
-    db.selectFrom('capabilities').selectAll().where('user_id', '=', userId).execute(),
-  ]);
+  const [identityRow, managerRows, grants, capabilities, groupManagerRows, blueprintManagerRows] =
+    await Promise.all([
+      db
+        .selectFrom('user_identity')
+        .select(['identity'])
+        .where('user_id', '=', userId)
+        .executeTakeFirst(),
+      db
+        .selectFrom('user_managers')
+        .select(['manager_user_id'])
+        .where('user_id', '=', userId)
+        .execute(),
+      db.selectFrom('view_grants').selectAll().where('user_id', '=', userId).execute(),
+      db.selectFrom('capabilities').selectAll().where('user_id', '=', userId).execute(),
+      db.selectFrom('group_managers').selectAll().where('user_id', '=', userId).execute(),
+      db.selectFrom('blueprint_managers').selectAll().where('user_id', '=', userId).execute(),
+    ]);
 
   const facts: UserFacts = {
     id: user.id,
@@ -62,7 +81,13 @@ export async function loadUserAuthz(db: Db, userId: string): Promise<UserAuthz |
     managedByUserIds: managerRows.map((row) => row.manager_user_id).sort(),
   };
 
-  return { user, facts, grants, capabilities };
+  return {
+    user,
+    facts,
+    grants,
+    capabilities,
+    jurisdiction: jurisdictionOf(facts.identity, groupManagerRows, blueprintManagerRows),
+  };
 }
 
 export function viewScopeOf(grants: readonly ViewGrantRow[]): ScopeRef[] {
@@ -84,8 +109,23 @@ export function capabilitiesOf(rows: readonly CapabilityRow[]): CapabilityGrant[
   );
 }
 
-/** 「我管理的用户」：`user_managers` 里 manager 是我的那些行。 */
-export async function loadManagedUserIds(db: Db, managerUserId: string): Promise<string[]> {
+/**
+ * 管辖范围：只有 `user_admin` 生效（所有者隐式全权、普通用户走业务能力表）。
+ * 身份被降级成 member 时，历史管辖行自动失效——宁可少给权，也不留幽灵地盘。
+ */
+export function jurisdictionOf(
+  identity: Identity,
+  groupRows: readonly GroupManagerRow[],
+  blueprintRows: readonly BlueprintManagerRow[],
+): JurisdictionScope {
+  if (identity !== 'user_admin') return emptyJurisdiction();
+  return {
+    groupIds: [...new Set(groupRows.map((row) => row.group_id))].sort(),
+    blueprintIds: [...new Set(blueprintRows.map((row) => row.blueprint_id))].sort(),
+  };
+}
+
+/** 「我管理的用户」：`user_managers` 里 manager 是我的那些行。 */export async function loadManagedUserIds(db: Db, managerUserId: string): Promise<string[]> {
   const rows = await db
     .selectFrom('user_managers')
     .select(['user_id'])
@@ -123,7 +163,8 @@ export async function buildUserContext(
     viewScope,
     // S1 裁决：用户管理员的可委派范围等于其本人查看范围
     delegableScope: delegableScope(authz.facts.identity, viewScope),
-    capabilities: capabilitiesOf(authz.capabilities),
+    capabilities: effectiveCapabilities(capabilitiesOf(authz.capabilities), authz.jurisdiction),
+    jurisdiction: authz.jurisdiction,
     tokenScopes: overrides.tokenScopes ?? null,
   };
 }

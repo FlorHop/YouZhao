@@ -31,6 +31,22 @@ export interface CapabilityGrant {
   readonly targetId: string;
 }
 
+/**
+ * 管辖范围：所有者划给某位用户管理员「地盘」的分组与单个蓝图
+ * （`group_managers` / `blueprint_managers`，docs/permission-design.md §2.3）。
+ *
+ * 它与 `capabilities` 刻意分表：管辖是「长期归属」，能力是「例外授权」。
+ * 管辖派生的业务能力会在 `deriveJurisdictionCapabilities` 里折算进有效能力。
+ */
+export interface JurisdictionScope {
+  readonly groupIds: readonly string[];
+  readonly blueprintIds: readonly string[];
+}
+
+export function emptyJurisdiction(): JurisdictionScope {
+  return { groupIds: [], blueprintIds: [] };
+}
+
 /** 判定「用户类动作」时必须知道的目标事实。 */
 export interface UserFacts {
   readonly id: string;
@@ -55,7 +71,13 @@ export interface RequestContext {
   readonly viewScope: readonly ScopeRef[];
   /** 可委派范围；S1 裁决：等于本人的查看范围。 */
   readonly delegableScope: readonly ScopeRef[];
+  /** 有效业务能力 = 管辖派生 ∪ `capabilities` 行（并集，审查见 scopes.ts）。 */
   readonly capabilities: readonly CapabilityGrant[];
+  /**
+   * 管辖范围原始值，仅供界面展示与审计；判定一律看折算后的 `capabilities`。
+   * 只有 `user_admin` 会有内容（所有者隐式全权、普通用户走能力表）。
+   */
+  readonly jurisdiction?: JurisdictionScope;
   /** MCP Token 的 scope；浏览器会话为 `null`。 */
   readonly tokenScopes: readonly TokenScope[] | null;
 }
@@ -77,6 +99,9 @@ export type Action =
   | 'grant.view.add'
   | 'grant.view.remove'
   | 'capability.set'
+  // 管辖（管理员的地盘；仅所有者可读写）
+  | 'jurisdiction.read'
+  | 'jurisdiction.set'
   // 本人自助（/api/me/*）
   | 'me.update'
   | 'me.password'
@@ -120,6 +145,12 @@ export type Resource =
       readonly kind: 'capabilities';
       readonly target: UserFacts;
       readonly requested: readonly CapabilityGrant[];
+    }
+  | {
+      readonly kind: 'jurisdiction';
+      readonly target: UserFacts;
+      /** 本次整体替换后的管辖范围；`read` 查询也走这个 shape，便于共用目标事实。 */
+      readonly requested?: JurisdictionScope;
     }
   | { readonly kind: 'group'; readonly groupId: string }
   | { readonly kind: 'blueprint'; readonly blueprintId: string; readonly groupId: string }

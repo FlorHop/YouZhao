@@ -29,6 +29,7 @@ function fixture(identity: SessionData['user']['identity']): SessionData {
     capabilities: [],
     viewGrants: [],
     delegableScopes: [],
+    jurisdiction: { groupIds: [], blueprintIds: [] },
   };
 }
 

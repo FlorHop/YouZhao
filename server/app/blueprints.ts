@@ -28,7 +28,7 @@ import type { RequestContext } from '../domain/entities.js';
 import { AppError } from '../domain/errors.js';
 import { DEFAULT_GROUP_ID, newId } from '../domain/ids.js';
 import { assertAuthorized, authorize } from '../domain/policy.js';
-import { isResourceVisible, type ResourceLike } from '../domain/scopes.js';
+import { hasAnyCapability, isResourceVisible, type ResourceLike } from '../domain/scopes.js';
 import {
   artifactDirFor,
   MAX_ARTIFACT_BYTES,
@@ -338,8 +338,11 @@ export async function listBlueprintGroups(
 /**
  * `POST /api/blueprint-groups`。
  *
- * 建组后自动给「在本平台持有 `blueprint.manage` 的所有用户 + 操作者本人」补一条分组查看授权，
- * 对齐现状实现的 `grantGroupToBlueprintManagers` 语义：新分组不应该只对创建者可见。
+ * 建组后给创建者留两条痕迹（都不涉及他人）：
+ * - 一条 `view_grants`：新分组不应该建完就看不见；
+ * - 一条写权：能发版的人把新组并进**自己的管辖**（派生发布 + 维护），只会维护的人
+ *   只补一条 group 级 `blueprint.manage` 例外授权。绝不因为「建了个组」就发版权——
+ *   否则建空组会变成绕过所有者的提权路径（docs/permission-design.md §2.4）。
  */
 export async function createBlueprintGroup(
   db: Db,
@@ -391,6 +394,31 @@ export async function createBlueprintGroup(
           })
           .onConflict((oc) => oc.columns(['user_id', 'target_type', 'target_id']).doNothing())
           .execute();
+
+        if (hasAnyCapability(context.capabilities, 'blueprint.publish')) {
+          // 能发版的人：新组纳入自己的管辖（分组管辖 ⇒ 发布 + 维护）
+          await db
+            .insertInto('group_managers')
+            .values({ group_id: groupId, user_id: context.userId, granted_by: context.userId })
+            .onConflict((oc) => oc.columns(['group_id', 'user_id']).doNothing())
+            .execute();
+        } else if (hasAnyCapability(context.capabilities, 'blueprint.manage')) {
+          // 只会维护的人：只补一条 manage，不给发版权
+          await db
+            .insertInto('capabilities')
+            .values({
+              id: newId('cap'),
+              user_id: context.userId,
+              capability: 'blueprint.manage',
+              target_type: 'group',
+              target_id: groupId,
+              granted_by: context.userId,
+            })
+            .onConflict((oc) =>
+              oc.columns(['user_id', 'capability', 'target_type', 'target_id']).doNothing(),
+            )
+            .execute();
+        }
       }
 
       const row = await db

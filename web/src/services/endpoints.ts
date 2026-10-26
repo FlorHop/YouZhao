@@ -21,11 +21,14 @@ import type {
   PublishBlueprintVersionRequest,
   ReorderBlueprintGroupsRequest,
   SessionResponse,
+  SetUserJurisdictionRequest,
   TokensListResponse,
   UpdateBlueprintRequest,
   UpdateMcpTokenRequest,
   UpdateMeRequest,
   ChangeOwnPasswordRequest,
+  UserAccessResponse,
+  UserJurisdictionResponse,
   VerifyMcpTokenRequest,
   VerifyMcpTokenResponse,
   UsersListResponse,
@@ -42,6 +45,10 @@ export type ViewGrant = SessionData['viewGrants'][number];
 export type ScopeRef = SessionData['delegableScopes'][number];
 export type CapabilityRef = SessionData['capabilities'][number];
 export type UserRow = UsersListResponse['data']['items'][number];
+export type UserAccessData = UserAccessResponse['data'];
+export type JurisdictionData = UserJurisdictionResponse['data'];
+export type JurisdictionGroup = JurisdictionData['groups'][number];
+export type JurisdictionBlueprint = JurisdictionData['blueprints'][number];
 export type GrantRow = ViewGrant;
 export type TokenRow = TokensListResponse['data']['items'][number];
 export type BlueprintGroup = BlueprintGroupsListResponse['data']['items'][number];
@@ -152,6 +159,22 @@ export function setUserCapabilities(
   return apiRequest<Envelope<{ capabilities: CapabilityRef[] }>>(`/api/users/${userId}/capabilities`, {
     method: 'PUT',
     json: { capabilities },
+  });
+}
+
+/** 完整写权限视图：例外授权 + 有效能力 + 管辖范围（仅所有者）。 */
+export function getUserAccess(userId: string): Promise<UserAccessData> {
+  return apiData<UserAccessData>(`/api/users/${userId}/access`);
+}
+
+/** 整体替换该用户管理员的管辖范围（仅所有者；`PUT` 语义）。 */
+export function setUserJurisdiction(
+  userId: string,
+  input: SetUserJurisdictionRequest,
+): Promise<JurisdictionData> {
+  return apiData<JurisdictionData>(`/api/users/${userId}/jurisdiction`, {
+    method: 'PUT',
+    json: input,
   });
 }
 

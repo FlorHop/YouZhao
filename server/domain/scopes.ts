@@ -10,6 +10,7 @@ import type {
   CapabilityGrant,
   CapabilityName,
   Identity,
+  JurisdictionScope,
   RequestContext,
   ScopeRef,
   TargetType,
@@ -111,6 +112,40 @@ export function dedupeCapabilities(caps: readonly CapabilityGrant[]): Capability
     });
   }
   return out;
+}
+
+/**
+ * 管辖派生的业务能力（docs/permission-design.md §2.3）：
+ * - 分组管辖 ⇒ 该分组上的 `blueprint.publish` + `blueprint.manage`（组范围覆盖组内全部蓝图）。
+ * - 单个蓝图的管辖 ⇒ 该蓝图上的 `blueprint.manage`。**不**派生「在该组内新建蓝图」——
+ *   新建的目标资源是分组本身，不是某个已有蓝图，否则单点管辖会变成整组发版权。
+ */
+export function deriveJurisdictionCapabilities(
+  jurisdiction: JurisdictionScope,
+): CapabilityGrant[] {
+  const out: CapabilityGrant[] = [];
+  for (const groupId of jurisdiction.groupIds) {
+    out.push({ capability: 'blueprint.publish', targetType: 'group', targetId: groupId });
+    out.push({ capability: 'blueprint.manage', targetType: 'group', targetId: groupId });
+  }
+  for (const blueprintId of jurisdiction.blueprintIds) {
+    out.push({ capability: 'blueprint.manage', targetType: 'blueprint', targetId: blueprintId });
+  }
+  return out;
+}
+
+/**
+ * 有效能力 = 管辖派生 ∪ `capabilities` 行（并集裁决，docs/permission-design.md §2.3）。
+ *
+ * 并集而不是「能力表说了算」，是为了避免出现「他管辖着这个组、却因为表里没有 publish 行
+ * 而发不了版」的矛盾状态：管辖**不被**能力表削减，能力表只做加法（例外授权）。
+ */
+export function effectiveCapabilities(
+  granted: readonly CapabilityGrant[],
+  jurisdiction: JurisdictionScope | undefined,
+): CapabilityGrant[] {
+  if (jurisdiction === undefined) return dedupeCapabilities(granted);
+  return dedupeCapabilities([...granted, ...deriveJurisdictionCapabilities(jurisdiction)]);
 }
 
 export function capabilityTargets(

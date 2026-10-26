@@ -35,6 +35,7 @@ function sessionFixture(identity: SessionData['user']['identity']): SessionData 
       },
     ],
     delegableScopes: [{ targetType: 'group', targetId: 'grp_a' }],
+    jurisdiction: { groupIds: ['grp_a'], blueprintIds: [] },
   };
 }
 

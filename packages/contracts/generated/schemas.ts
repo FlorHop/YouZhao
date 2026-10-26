@@ -109,7 +109,7 @@ export const authSessionSchema = {
           },
           "capabilities": {
             "type": "array",
-            "description": "业务能力；每条 = 能力 + 绑定的资源范围（目标字段与 viewGrants 统一为 targetType/targetId）",
+            "description": "有效业务能力 = 管辖派生 ∪ 例外授权（docs/permission-design.md §2.3）；每条 = 能力 + 绑定的资源范围（目标字段与 viewGrants 统一为 targetType/targetId）",
             "items": {
               "type": "object",
               "properties": {
@@ -179,7 +179,7 @@ export const authSessionSchema = {
           },
           "delegableScopes": {
             "type": "array",
-            "description": "可委派范围（派生字段）：用户管理员等于其自身查看范围；其他身份为空数组",
+            "description": "可委派范围（派生字段）：用户管理员等于其自身查看范围；其他身份为空数组。注：管辖不扩大可委派范围，管辖组要能分派查看权须另有 view_grant",
             "items": {
               "type": "object",
               "properties": {
@@ -200,13 +200,37 @@ export const authSessionSchema = {
               ],
               "additionalProperties": false
             }
+          },
+          "jurisdiction": {
+            "type": "object",
+            "description": "本人管辖范围（派生字段）：用户管理员为 group_managers / blueprint_managers 中的 id 集合，其他身份为空数组；仅供界面展示「我的地盘」，判定看 capabilities",
+            "properties": {
+              "groupIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "blueprintIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "groupIds",
+              "blueprintIds"
+            ],
+            "additionalProperties": false
           }
         },
         "required": [
           "user",
           "capabilities",
           "viewGrants",
-          "delegableScopes"
+          "delegableScopes",
+          "jurisdiction"
         ],
         "additionalProperties": false
       },
@@ -3862,6 +3886,177 @@ export const tokensVerifySchema = {
     "additionalProperties": false
   } as const satisfies JsonSchema;
 
+/** UserAccessResponse — schemas/users/access.json */
+export const usersAccessSchema = {
+    "$id": "users/access",
+    "title": "UserAccessResponse",
+    "description": "GET /api/users/:id/access —— 某位用户的完整写权限视图（仅所有者，docs/permission-design.md §6.2）：管辖范围、例外授权与折算后的有效能力；前端据此渲染「管辖」与「业务能力」两个区段",
+    "type": "object",
+    "$defs": {
+      "CapabilityGrant": {
+        "type": "object",
+        "properties": {
+          "capability": {
+            "type": "string",
+            "enum": [
+              "blueprint.manage",
+              "blueprint.publish"
+            ]
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "group",
+              "blueprint"
+            ]
+          },
+          "targetId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "capability",
+          "targetType",
+          "targetId"
+        ],
+        "additionalProperties": false
+      },
+      "JurisdictionGroup": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "grantedByUserId": {
+            "type": "string"
+          },
+          "grantedByDisplayName": {
+            "type": "string"
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "grantedByUserId",
+          "grantedByDisplayName",
+          "grantedAt"
+        ],
+        "additionalProperties": false
+      },
+      "JurisdictionBlueprint": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "groupId": {
+            "type": "string"
+          },
+          "groupName": {
+            "type": "string"
+          },
+          "grantedByUserId": {
+            "type": "string"
+          },
+          "grantedByDisplayName": {
+            "type": "string"
+          },
+          "grantedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "groupId",
+          "groupName",
+          "grantedByUserId",
+          "grantedByDisplayName",
+          "grantedAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "properties": {
+      "data": {
+        "type": "object",
+        "properties": {
+          "capabilities": {
+            "type": "array",
+            "description": "例外授权的原始行（capabilities 表）；不含管辖派生项",
+            "items": {
+              "$ref": "#/$defs/CapabilityGrant"
+            }
+          },
+          "effectiveCapabilities": {
+            "type": "array",
+            "description": "有效能力 = 管辖派生 ∪ 例外授权（判定依据，前端门控用这一份）",
+            "items": {
+              "$ref": "#/$defs/CapabilityGrant"
+            }
+          },
+          "jurisdiction": {
+            "type": "object",
+            "description": "管辖范围原始行（group_managers / blueprint_managers）；仅用户管理员会有内容",
+            "properties": {
+              "groups": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/JurisdictionGroup"
+                }
+              },
+              "blueprints": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/$defs/JurisdictionBlueprint"
+                }
+              }
+            },
+            "required": [
+              "groups",
+              "blueprints"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "capabilities",
+          "effectiveCapabilities",
+          "jurisdiction"
+        ],
+        "additionalProperties": false
+      },
+      "meta": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "data",
+      "meta"
+    ],
+    "additionalProperties": false
+  } as const satisfies JsonSchema;
+
 /** SetUserCapabilitiesRequest — schemas/users/capabilities.json */
 export const usersCapabilitiesSchema = {
     "$id": "users/capabilities",
@@ -4198,6 +4393,151 @@ export const usersIdentitySchema = {
     },
     "required": [
       "identity"
+    ],
+    "additionalProperties": false
+  } as const satisfies JsonSchema;
+
+/** SetUserJurisdictionRequest — schemas/users/jurisdiction-set.json */
+export const usersJurisdictionSetSchema = {
+    "$id": "users/jurisdiction-set",
+    "title": "SetUserJurisdictionRequest",
+    "description": "PUT /api/users/:id/jurisdiction 请求体（仅所有者，docs/permission-design.md §6.2）：整体设置某位用户管理员的管辖范围。分组管辖派生发布 + 维护能力，单个蓝图管辖只派生维护能力；空数组 = 收回该维度全部管辖",
+    "type": "object",
+    "properties": {
+      "groupIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uniqueItems": true,
+        "description": "管辖的分组 id 集合（整体替换）"
+      },
+      "blueprintIds": {
+        "type": "array",
+        "items": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uniqueItems": true,
+        "description": "管辖的单个蓝图 id 集合（整体替换）"
+      }
+    },
+    "required": [
+      "groupIds",
+      "blueprintIds"
+    ],
+    "additionalProperties": false
+  } as const satisfies JsonSchema;
+
+/** UserJurisdictionResponse — schemas/users/jurisdiction.json */
+export const usersJurisdictionSchema = {
+    "$id": "users/jurisdiction",
+    "title": "UserJurisdictionResponse",
+    "description": "某位用户管理员的管辖范围（GET /api/users/:id/access 与 PUT /api/users/:id/jurisdiction 的共用形状，仅所有者，docs/permission-design.md §6.2）",
+    "type": "object",
+    "properties": {
+      "data": {
+        "type": "object",
+        "properties": {
+          "groups": {
+            "type": "array",
+            "description": "管辖的分组：派生出该组上的 blueprint.publish 与 blueprint.manage（覆盖组内全部蓝图）",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "grantedByUserId": {
+                  "type": "string"
+                },
+                "grantedByDisplayName": {
+                  "type": "string",
+                  "description": "划拨管辖的人（应为平台所有者）"
+                },
+                "grantedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "grantedByUserId",
+                "grantedByDisplayName",
+                "grantedAt"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "blueprints": {
+            "type": "array",
+            "description": "管辖的单个蓝图：只派生该蓝图上的 blueprint.manage，不含「在其所属分组内新建蓝图」",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "groupId": {
+                  "type": "string"
+                },
+                "groupName": {
+                  "type": "string"
+                },
+                "grantedByUserId": {
+                  "type": "string"
+                },
+                "grantedByDisplayName": {
+                  "type": "string"
+                },
+                "grantedAt": {
+                  "type": "string",
+                  "format": "date-time"
+                }
+              },
+              "required": [
+                "id",
+                "name",
+                "groupId",
+                "groupName",
+                "grantedByUserId",
+                "grantedByDisplayName",
+                "grantedAt"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "groups",
+          "blueprints"
+        ],
+        "additionalProperties": false
+      },
+      "meta": {
+        "type": "object",
+        "properties": {
+          "requestId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestId"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "required": [
+      "data",
+      "meta"
     ],
     "additionalProperties": false
   } as const satisfies JsonSchema;

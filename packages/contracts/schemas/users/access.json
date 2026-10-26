@@ -1,0 +1,97 @@
+{
+  "$id": "users/access",
+  "title": "UserAccessResponse",
+  "description": "GET /api/users/:id/access —— 某位用户的完整写权限视图（仅所有者，docs/permission-design.md §6.2）：管辖范围、例外授权与折算后的有效能力；前端据此渲染「管辖」与「业务能力」两个区段",
+  "type": "object",
+  "$defs": {
+    "CapabilityGrant": {
+      "type": "object",
+      "properties": {
+        "capability": { "type": "string", "enum": ["blueprint.manage", "blueprint.publish"] },
+        "targetType": { "type": "string", "enum": ["group", "blueprint"] },
+        "targetId": { "type": "string" }
+      },
+      "required": ["capability", "targetType", "targetId"],
+      "additionalProperties": false
+    },
+    "JurisdictionGroup": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "grantedByUserId": { "type": "string" },
+        "grantedByDisplayName": { "type": "string" },
+        "grantedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "grantedByUserId", "grantedByDisplayName", "grantedAt"],
+      "additionalProperties": false
+    },
+    "JurisdictionBlueprint": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "groupId": { "type": "string" },
+        "groupName": { "type": "string" },
+        "grantedByUserId": { "type": "string" },
+        "grantedByDisplayName": { "type": "string" },
+        "grantedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "id",
+        "name",
+        "groupId",
+        "groupName",
+        "grantedByUserId",
+        "grantedByDisplayName",
+        "grantedAt"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "capabilities": {
+          "type": "array",
+          "description": "例外授权的原始行（capabilities 表）；不含管辖派生项",
+          "items": { "$ref": "#/$defs/CapabilityGrant" }
+        },
+        "effectiveCapabilities": {
+          "type": "array",
+          "description": "有效能力 = 管辖派生 ∪ 例外授权（判定依据，前端门控用这一份）",
+          "items": { "$ref": "#/$defs/CapabilityGrant" }
+        },
+        "jurisdiction": {
+          "type": "object",
+          "description": "管辖范围原始行（group_managers / blueprint_managers）；仅用户管理员会有内容",
+          "properties": {
+            "groups": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/JurisdictionGroup" }
+            },
+            "blueprints": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/JurisdictionBlueprint" }
+            }
+          },
+          "required": ["groups", "blueprints"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["capabilities", "effectiveCapabilities", "jurisdiction"],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" }
+      },
+      "required": ["requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

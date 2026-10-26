@@ -77,7 +77,7 @@
         },
         "capabilities": {
           "type": "array",
-          "description": "业务能力；每条 = 能力 + 绑定的资源范围（目标字段与 viewGrants 统一为 targetType/targetId）",
+          "description": "有效业务能力 = 管辖派生 ∪ 例外授权（docs/permission-design.md §2.3）；每条 = 能力 + 绑定的资源范围（目标字段与 viewGrants 统一为 targetType/targetId）",
           "items": {
             "type": "object",
             "properties": {
@@ -147,7 +147,7 @@
         },
         "delegableScopes": {
           "type": "array",
-          "description": "可委派范围（派生字段）：用户管理员等于其自身查看范围；其他身份为空数组",
+          "description": "可委派范围（派生字段）：用户管理员等于其自身查看范围；其他身份为空数组。注：管辖不扩大可委派范围，管辖组要能分派查看权须另有 view_grant",
           "items": {
             "type": "object",
             "properties": {
@@ -168,13 +168,37 @@
             ],
             "additionalProperties": false
           }
+        },
+        "jurisdiction": {
+          "type": "object",
+          "description": "本人管辖范围（派生字段）：用户管理员为 group_managers / blueprint_managers 中的 id 集合，其他身份为空数组；仅供界面展示「我的地盘」，判定看 capabilities",
+          "properties": {
+            "groupIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "blueprintIds": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "groupIds",
+            "blueprintIds"
+          ],
+          "additionalProperties": false
         }
       },
       "required": [
         "user",
         "capabilities",
         "viewGrants",
-        "delegableScopes"
+        "delegableScopes",
+        "jurisdiction"
       ],
       "additionalProperties": false
     },

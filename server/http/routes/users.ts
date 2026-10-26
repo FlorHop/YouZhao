@@ -7,11 +7,14 @@
  * 判权与落库都在 `server/app/users.ts`。
  */
 import {
+  usersAccessSchema,
   usersCapabilitiesSchema,
   usersCreateSchema,
   usersGrantsChangeSchema,
   usersGrantsSchema,
   usersIdentitySchema,
+  usersJurisdictionSchema,
+  usersJurisdictionSetSchema,
   usersListSchema,
   usersManagedBySchema,
   usersPasswordSchema,
@@ -23,6 +26,7 @@ import type {
   SetManagedByRequest,
   SetUserCapabilitiesRequest,
   SetUserIdentityRequest,
+  SetUserJurisdictionRequest,
   UpdateUserRequest,
   UserGrantsChangeRequest,
 } from '@youzhao/contracts/types';
@@ -32,6 +36,7 @@ import {
   createUser,
   DEFAULT_PAGE_SIZE,
   deleteUser,
+  getUserAccess,
   listUserGrants,
   listUsers,
   MAX_PAGE_SIZE,
@@ -39,6 +44,7 @@ import {
   setManagedBy,
   setUserCapabilities,
   setUserIdentity,
+  setUserJurisdiction,
   updateUser,
 } from '../../app/users.js';
 import type { UserAudit } from '../../app/users.js';
@@ -298,6 +304,42 @@ export function registerUserRoutes(app: FastifyInstance, deps: UserRouteDeps): v
         auditOf(request),
       );
       return { data: { id, capabilities }, meta: { requestId: String(request.id) } };
+    },
+  );
+
+  // 完整写权限视图：例外授权 + 有效能力 + 管辖范围（仅所有者）。
+  app.get(
+    '/api/users/:id/access',
+    { schema: { params: idParamsSchema, response: { 200: usersAccessSchema } } },
+    async (request) => {
+      const context = await requireContext(request, deps);
+      const { id } = request.params as IdParams;
+      const access = await getUserAccess(deps.db, context, id, auditOf(request));
+      return { data: access, meta: { requestId: String(request.id) } };
+    },
+  );
+
+  // 管辖整体替换（仅所有者）：分组管辖派生发布 + 维护，单蓝图管辖只派生维护。
+  app.put(
+    '/api/users/:id/jurisdiction',
+    {
+      schema: {
+        params: idParamsSchema,
+        body: usersJurisdictionSetSchema,
+        response: { 200: usersJurisdictionSchema },
+      },
+    },
+    async (request) => {
+      const context = await requireContext(request, deps);
+      const { id } = request.params as IdParams;
+      const jurisdiction = await setUserJurisdiction(
+        deps.db,
+        context,
+        id,
+        request.body as SetUserJurisdictionRequest,
+        auditOf(request),
+      );
+      return { data: jurisdiction, meta: { requestId: String(request.id) } };
     },
   );
 }

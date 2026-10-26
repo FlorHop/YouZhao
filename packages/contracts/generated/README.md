@@ -49,11 +49,14 @@
 | `schemas/tokens/update.json` | `UpdateMcpTokenRequest` | `tokensUpdateSchema` |
 | `schemas/tokens/verify-response.json` | `VerifyMcpTokenResponse` | `tokensVerifyResponseSchema` |
 | `schemas/tokens/verify.json` | `VerifyMcpTokenRequest` | `tokensVerifySchema` |
+| `schemas/users/access.json` | `UserAccessResponse` | `usersAccessSchema` |
 | `schemas/users/capabilities.json` | `SetUserCapabilitiesRequest` | `usersCapabilitiesSchema` |
 | `schemas/users/create.json` | `CreateUserRequest` | `usersCreateSchema` |
 | `schemas/users/grants-change.json` | `UserGrantsChangeRequest` | `usersGrantsChangeSchema` |
 | `schemas/users/grants.json` | `UserGrantsResponse` | `usersGrantsSchema` |
 | `schemas/users/identity.json` | `SetUserIdentityRequest` | `usersIdentitySchema` |
+| `schemas/users/jurisdiction-set.json` | `SetUserJurisdictionRequest` | `usersJurisdictionSetSchema` |
+| `schemas/users/jurisdiction.json` | `UserJurisdictionResponse` | `usersJurisdictionSchema` |
 | `schemas/users/list.json` | `UsersListResponse` | `usersListSchema` |
 | `schemas/users/managed-by.json` | `SetManagedByRequest` | `usersManagedBySchema` |
 | `schemas/users/password.json` | `ResetUserPasswordRequest` | `usersPasswordSchema` |

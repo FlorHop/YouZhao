@@ -1,0 +1,22 @@
+{
+  "$id": "users/jurisdiction-set",
+  "title": "SetUserJurisdictionRequest",
+  "description": "PUT /api/users/:id/jurisdiction 请求体（仅所有者，docs/permission-design.md §6.2）：整体设置某位用户管理员的管辖范围。分组管辖派生发布 + 维护能力，单个蓝图管辖只派生维护能力；空数组 = 收回该维度全部管辖",
+  "type": "object",
+  "properties": {
+    "groupIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "管辖的分组 id 集合（整体替换）"
+    },
+    "blueprintIds": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "管辖的单个蓝图 id 集合（整体替换）"
+    }
+  },
+  "required": ["groupIds", "blueprintIds"],
+  "additionalProperties": false
+}

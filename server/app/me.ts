@@ -13,6 +13,8 @@ import { AppError } from '../domain/errors.js';
 import type { Identity, RequestContext, ScopeRef } from '../domain/entities.js';
 import { assertAcceptablePassword, hashPassword, verifyPassword } from '../domain/password.js';
 import { assertAuthorized } from '../domain/policy.js';
+import { effectiveCapabilities } from '../domain/scopes.js';
+import { capabilitiesOf, jurisdictionOf } from './context.js';
 import { revokeAllSessionsForUser } from './session.js';
 
 type MeView = SessionResponse['data'];
@@ -24,16 +26,27 @@ type MeView = SessionResponse['data'];
  * 可委派范围与它平级——前端据此分别驱动导航裁剪与授权面板。
  */
 export async function buildMeView(db: Db, userId: string): Promise<MeView> {
-  const [user, identityRow, managerRows, grants, capabilities] = await Promise.all([
+  const [
+    user,
+    identityRow,
+    managerRows,
+    grants,
+    capabilities,
+    groupManagerRows,
+    blueprintManagerRows,
+  ] = await Promise.all([
     db.selectFrom('users').selectAll().where('id', '=', userId).executeTakeFirst(),
     db.selectFrom('user_identity').select(['identity']).where('user_id', '=', userId).executeTakeFirst(),
     db.selectFrom('user_managers').select(['manager_user_id']).where('user_id', '=', userId).execute(),
     db.selectFrom('view_grants').selectAll().where('user_id', '=', userId).execute(),
     db.selectFrom('capabilities').selectAll().where('user_id', '=', userId).execute(),
+    db.selectFrom('group_managers').selectAll().where('user_id', '=', userId).execute(),
+    db.selectFrom('blueprint_managers').selectAll().where('user_id', '=', userId).execute(),
   ]);
   if (user === undefined) throw new AppError('UNAUTHENTICATED');
 
   const identity = (identityRow?.identity ?? 'member') as Identity;
+  const jurisdiction = jurisdictionOf(identity, groupManagerRows, blueprintManagerRows);
 
   // 授予者姓名：一次批量查询，避免前端为了「由 X 授予」再逐条拉用户
   const granterIds = [...new Set(grants.map((grant) => grant.granted_by))];
@@ -66,11 +79,11 @@ export async function buildMeView(db: Db, userId: string): Promise<MeView> {
       mustChangePassword: user.must_change_password,
       managedByUserIds: managerRows.map((row) => row.manager_user_id).sort(),
     },
-    capabilities: capabilities
-      .map((row) => ({
-        capability: row.capability as MeView['capabilities'][number]['capability'],
-        targetType: row.target_type as MeView['capabilities'][number]['targetType'],
-        targetId: row.target_id,
+    capabilities: effectiveCapabilities(capabilitiesOf(capabilities), jurisdiction)
+      .map((cap) => ({
+        capability: cap.capability as MeView['capabilities'][number]['capability'],
+        targetType: cap.targetType as MeView['capabilities'][number]['targetType'],
+        targetId: cap.targetId,
       }))
       .sort((left, right) =>
         `${left.capability}:${left.targetType}:${left.targetId}`.localeCompare(
@@ -88,8 +101,12 @@ export async function buildMeView(db: Db, userId: string): Promise<MeView> {
       .sort((left, right) =>
         `${left.targetType}:${left.targetId}`.localeCompare(`${right.targetType}:${right.targetId}`),
       ),
-    // S1：可委派范围 = 用户管理员本人的查看范围；成员为空
+    // S1：可委派范围 = 用户管理员本人的查看范围；成员为空。管辖不扩大它（§2.3）
     delegableScopes: identity === 'user_admin' ? viewScope : [],
+    jurisdiction: {
+      groupIds: [...jurisdiction.groupIds],
+      blueprintIds: [...jurisdiction.blueprintIds],
+    },
   };
 }
 

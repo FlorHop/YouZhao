@@ -11,6 +11,9 @@
  *   `blueprint.publish`，因此无需在 `capabilities` 里给自己授权（否则平台无法自举）。
  * - **`member` 使用 `/api/users/*` 一律 `FORBIDDEN`**（不变量 10 命名空间隔离），
  *   而「同级/上级」冲突用 `PEER_MANAGE_DENIED`、越界用 `OUT_OF_MANAGED_SCOPE`。
+ * - **管辖不是权限，是地盘**：`group_managers` / `blueprint_managers` 由所有者划给用户管理员，
+ *   派生出的业务能力在 `context.ts` 折算进 `ctx.capabilities`，策略层照旧只看能力与范围，
+ *   不区分「能力来自管辖还是例外授权」。
  */
 import { AppError } from './errors.js';
 import {
@@ -104,6 +107,25 @@ function judge(
       if (target === null) return deny('INTERNAL_ERROR', NO_USER_FACTS);
       if (target.identity === 'owner') return deny('OWNER_PROTECTED', '平台所有者不可被修改');
       if (target.id === ctx.userId) return deny('SELF_MANAGE_DENIED', '不能修改自己的身份或归属');
+      return allow();
+    }
+    // ── 管辖：管理员的地盘，仅所有者可读写（docs/permission-design.md §2.3） ──────
+    case 'jurisdiction.read': {
+      if (ctx.identity !== 'owner') return deny('FORBIDDEN', '只有平台所有者可以查看管辖范围');
+      if (userTargetOf(resource) === null) return deny('INTERNAL_ERROR', NO_USER_FACTS);
+      return allow();
+    }
+    case 'jurisdiction.set': {
+      if (ctx.identity !== 'owner') return deny('FORBIDDEN', '只有平台所有者可以设置管辖范围');
+      const target = userTargetOf(resource);
+      if (target === null) return deny('INTERNAL_ERROR', NO_USER_FACTS);
+      // 管辖只对用户管理员有意义：所有者隐式全权，普通用户的写权走「业务能力」例外授权。
+      if (target.identity !== 'user_admin') {
+        return deny(
+          'INVALID_ARGUMENT',
+          '管辖只对用户管理员生效：所有者隐式全权，普通用户请使用业务能力授权',
+        );
+      }
       return allow();
     }
     // ── 查看授权：所有者，或用户管理员在可委派范围内（不变量 3、4、7、12） ──

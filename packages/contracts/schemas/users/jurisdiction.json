@@ -1,0 +1,70 @@
+{
+  "$id": "users/jurisdiction",
+  "title": "UserJurisdictionResponse",
+  "description": "某位用户管理员的管辖范围（GET /api/users/:id/access 与 PUT /api/users/:id/jurisdiction 的共用形状，仅所有者，docs/permission-design.md §6.2）",
+  "type": "object",
+  "properties": {
+    "data": {
+      "type": "object",
+      "properties": {
+        "groups": {
+          "type": "array",
+          "description": "管辖的分组：派生出该组上的 blueprint.publish 与 blueprint.manage（覆盖组内全部蓝图）",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "grantedByUserId": { "type": "string" },
+              "grantedByDisplayName": {
+                "type": "string",
+                "description": "划拨管辖的人（应为平台所有者）"
+              },
+              "grantedAt": { "type": "string", "format": "date-time" }
+            },
+            "required": ["id", "name", "grantedByUserId", "grantedByDisplayName", "grantedAt"],
+            "additionalProperties": false
+          }
+        },
+        "blueprints": {
+          "type": "array",
+          "description": "管辖的单个蓝图：只派生该蓝图上的 blueprint.manage，不含「在其所属分组内新建蓝图」",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "name": { "type": "string" },
+              "groupId": { "type": "string" },
+              "groupName": { "type": "string" },
+              "grantedByUserId": { "type": "string" },
+              "grantedByDisplayName": { "type": "string" },
+              "grantedAt": { "type": "string", "format": "date-time" }
+            },
+            "required": [
+              "id",
+              "name",
+              "groupId",
+              "groupName",
+              "grantedByUserId",
+              "grantedByDisplayName",
+              "grantedAt"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["groups", "blueprints"],
+      "additionalProperties": false
+    },
+    "meta": {
+      "type": "object",
+      "properties": {
+        "requestId": { "type": "string" }
+      },
+      "required": ["requestId"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["data", "meta"],
+  "additionalProperties": false
+}

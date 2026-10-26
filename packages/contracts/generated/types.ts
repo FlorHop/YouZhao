@@ -48,11 +48,14 @@ import {
   tokensUpdateSchema,
   tokensVerifyResponseSchema,
   tokensVerifySchema,
+  usersAccessSchema,
   usersCapabilitiesSchema,
   usersCreateSchema,
   usersGrantsChangeSchema,
   usersGrantsSchema,
   usersIdentitySchema,
+  usersJurisdictionSetSchema,
+  usersJurisdictionSchema,
   usersListSchema,
   usersManagedBySchema,
   usersPasswordSchema,
@@ -102,11 +105,14 @@ export type McpTokenMutationResponse = FromSchema<typeof tokensMutationSchema>;
 export type UpdateMcpTokenRequest = FromSchema<typeof tokensUpdateSchema>;
 export type VerifyMcpTokenResponse = FromSchema<typeof tokensVerifyResponseSchema>;
 export type VerifyMcpTokenRequest = FromSchema<typeof tokensVerifySchema>;
+export type UserAccessResponse = FromSchema<typeof usersAccessSchema>;
 export type SetUserCapabilitiesRequest = FromSchema<typeof usersCapabilitiesSchema>;
 export type CreateUserRequest = FromSchema<typeof usersCreateSchema>;
 export type UserGrantsChangeRequest = FromSchema<typeof usersGrantsChangeSchema>;
 export type UserGrantsResponse = FromSchema<typeof usersGrantsSchema>;
 export type SetUserIdentityRequest = FromSchema<typeof usersIdentitySchema>;
+export type SetUserJurisdictionRequest = FromSchema<typeof usersJurisdictionSetSchema>;
+export type UserJurisdictionResponse = FromSchema<typeof usersJurisdictionSchema>;
 export type UsersListResponse = FromSchema<typeof usersListSchema>;
 export type SetManagedByRequest = FromSchema<typeof usersManagedBySchema>;
 export type ResetUserPasswordRequest = FromSchema<typeof usersPasswordSchema>;
