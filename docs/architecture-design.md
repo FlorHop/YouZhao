@@ -1124,6 +1124,10 @@ API 启动自检要求迁移先行，因此原生安装形态的升级顺序是�
 **纪律**：`git pull`、`pnpm install`、`pnpm -C web build`、`pnpm -C server migrate` 一律以 `youzhao` 身份执行（`sudo -u youzhao`），
 只有 `pg_dump`、`systemctl restart`、`chown` 这类需要特权的步骤才走 root。
 
+**同日追加收紧（`2b294bb`）**：`group.create` 改为**仅所有者**，并删掉「建组后把新组写进创建者管辖」的自授分支。
+原因：管辖会派生 `blueprint.manage`，而建组只判「任一资源上持有 manage」，两者相加等于「所有者划一个组，管理员就能无限建组、每组都自动带发版权」，管辖边界形同虚设。
+实测口径：生产库 `capabilities=0 group_managers=0`，收紧前没有任何管理员真的走过这条路径，属**堵住潜在提权**而非行为回退。
+
 ---
 
 ---
