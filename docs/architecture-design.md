@@ -1106,6 +1106,26 @@ can('user.create')                          // 装配页头主操作
 
 生产库已按新语义修正（先备份 `view_grants` 到 `/root/youzhao-backup-20261019/`，再删除悬挂行与所有者行）：清除后 `view_grants` = **4 行**（`demo` 2 + `xinje` 1 + `yl` 1；所有者隐式全可见，无需行）。悬挂行（3 蓝图 + 3 分组）是清理冒烟对象时只删对象未删授权所致。
 
+**管辖功能上线（2026-10-26，`2a4d553`）**
+
+新增迁移 `0006_jurisdiction.sql`（`group_managers` / `blueprint_managers` 两表，语义见 `docs/permission-design.md` §2.3），
+API 启动自检要求迁移先行，因此原生安装形态的升级顺序是：
+**备份 → `git pull` → `pnpm install --frozen-lockfile` → `pnpm -C server migrate`（用 `/etc/youzhao/api.env` 的 DB 变量）→ `pnpm -C web build` → `systemctl restart youzhao-api` → 健康检查**。
+本次库基线（升级前）：`users=6 groups=6 blueprints=17 versions=34 view_grants=6 capabilities=0 mcp_tokens=7`，
+两新表初始均为 0 行（管辖是「划地盘」，历史授权一并留在 `capabilities` 例外表里）。健康检查返回 `contractVersion 2.0.0`。
+
+两处**原生安装特有的坑**（都因历史上用 root 跑过运维命令）：
+
+| 现象 | 原因 | 处理 |
+| --- | --- | --- |
+| `git pull` 报 `insufficient permission for adding an object to repository database .git/objects` | 早先以 root 执行过拉取，`.git/objects/*` 部分目录属 root | `chown -R youzhao:youzhao /srv/youzhao/app/.git` 后再拉 |
+| `pnpm -C web build` 报 `EACCES: permission denied, '/srv/youzhao/app/web/dist/assets'` | 早先以 root 构建过，`web/dist` 下残留 root 文件，vite 清目录时被拒 | `chown -R youzhao:youzhao /srv/youzhao/app/web/dist` 后重建 |
+
+**纪律**：`git pull`、`pnpm install`、`pnpm -C web build`、`pnpm -C server migrate` 一律以 `youzhao` 身份执行（`sudo -u youzhao`），
+只有 `pg_dump`、`systemctl restart`、`chown` 这类需要特权的步骤才走 root。
+
+---
+
 ---
 
 ## 8.6 真实容器化验收记录（2026-10-23，本机 colima）
