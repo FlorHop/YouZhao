@@ -70,6 +70,8 @@ pnpm smoke:ui
 
 `smoke:e2e` 覆盖：健康检查、登录、分组、Token（断言响应不含 `token_hash`）、MCP `tools/list` 与发布、蓝图列表与详情、预览票据 → 303 换 Cookie → 产物（校验 CSP / nosniff）、匿名与二次换票必须 403、Token 删除后立即失效。
 
+服务端测试跑内存库（pglite），不需要本地 PostgreSQL；全量约 4 分钟，线上排查建议后台执行。冒烟脚本要显式传账号：`node scripts/smoke-e2e.mjs --base <url> --preview <url> --origin <url> --username <admin> --password <pwd>`。
+
 ---
 
 ## 权限模型（2026-10 现状）
@@ -137,7 +139,8 @@ sudo -u postgres psql -c "CREATE DATABASE youzhao OWNER youzhao"
 
 # 4) 配置：把下方清单写进 /etc/youzhao/api.env，然后 chown root:youzhao && chmod 640
 # 5) 迁移（必须先于启动：api 启动时发现未执行迁移会直接退出）
-sudo -u youzhao bash -c 'cd /srv/youzhao/app && pnpm server:migrate'
+#    注意：迁移 CLI 读的是进程环境变量，不会自动读 systemd 的 EnvironmentFile，所以要显式引入
+sudo -u youzhao bash -c 'set -a; . /etc/youzhao/api.env; set +a; cd /srv/youzhao/app && pnpm server:migrate'
 # 6) 前端静态资源（产物在 web/dist，由 nginx 直接托管）
 sudo -u youzhao pnpm -C web build
 ```
@@ -248,13 +251,14 @@ curl -fsS https://<应用域>/ | grep -o 'assets/index-[^"]*\.js'   # 确认拿�
 ```bash
 sudo -u youzhao git -C /srv/youzhao/app pull --ff-only
 sudo -u youzhao bash -c 'cd /srv/youzhao/app && pnpm -C server install && pnpm -C web install'
-sudo -u youzhao bash -c 'cd /srv/youzhao/app && pnpm server:migrate'   # 先迁移
+sudo -u youzhao bash -c 'set -a; . /etc/youzhao/api.env; set +a; cd /srv/youzhao/app && pnpm server:migrate'   # 先迁移
 sudo -u youzhao pnpm -C web build                                      # 再构建前端
 systemctl restart youzhao-api                                          # 最后重启 API
 systemctl is-active youzhao-api && curl -fsS http://127.0.0.1:3000/api/health
 ```
 
 - **顺序不能换**：api 启动时会校验迁移完整性，发现未执行的迁移会直接拒绝启动（防止新代码跑旧库）。
+- 迁移 CLI 若不方便读 env 文件，可用 `DATABASE_URL=postgres://youzhao:<pwd>@127.0.0.1:5432/youzhao` 显式覆盖（CI / 一次性容器常用）。
 - 迁移只前进、没有 down 脚本；回滚 = 恢复升级前的 `pg_dump` + 切回旧提交 + 重建前端。
 - 升级前先备份：`pg_dump -Fc youzhao > /root/youzhao-predeploy-$(date +%Y%m%d-%H%M%S).dump`，并同步 `cp /etc/youzhao/api.env /root/`。
 
