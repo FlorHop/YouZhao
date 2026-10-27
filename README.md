@@ -4,6 +4,12 @@
 
 本仓库是 **v2 重建**（契约优先 + PostgreSQL 关系模型 + MCP 服务）。旧版单文件 `app_state` JSON 应用已在 M6 切流中移除；旧数据可经迁移工具导入（见下）。设计与实施文档在 [`docs/`](docs/)。
 
+## 最近变更（2026-10）
+
+- **管辖上线**（迁移 `0006_jurisdiction`）：新增 `group_managers` / `blueprint_managers` 两张表，配 `GET /api/users/:id/access`、`PUT /api/users/:id/jurisdiction`；`/api/me` 的 `capabilities` 改为**有效能力**（管辖派生 ∪ 例外授权），并新增 `jurisdiction` 字段。
+- **建组收回给所有者**：`group.create` 只对 `owner` 放行；建组不再自动写任何授权行。管理员需要新分组时，由所有者先建组、再用「管辖」把组交给他。
+- 权限口径以 [`docs/permission-design.md`](docs/permission-design.md) §2.2（例外授权）/ §2.3（管辖）/ §4（十三条不变量）为准；生产升级记录见 [`docs/architecture-design.md`](docs/architecture-design.md) §8.5。
+
 ---
 
 ## 一眼看懂的结构
@@ -13,7 +19,7 @@
 | `packages/contracts/` | **契约唯一事实来源**：`schemas/**/*.json`（JSON Schema）+ 生成器（`gen` / `check`）→ `generated/*.ts`（类型与服务端校验共用） |
 | `server/` | Fastify + PostgreSQL 16 + Kysely 的 API；含身份权限域、蓝图与产物存储、预览票据、MCP 服务、旧数据迁移 CLI |
 | `web/` | Vue 3 + PrimeVue 前端（工作台 + 预览运行时的宿主页），OpenAI 设计体系 token 绑定 |
-| `deploy/` | 容器化编排：compose（postgres / api / web / gateway）、网关 nginx、安装/升级/备份/恢复脚本 |
+| `deploy/` | 容器化编排：compose（postgres / api / web / gateway）、网关 nginx、安装/升级/备份/恢复脚本；**原生安装**的逐条跑单见本文「部署」一节 |
 | `scripts/` | 无三方依赖的验收脚本：`smoke:e2e`（HTTP 契约 16 步）、`smoke:ui`（浏览器 15 步，含视觉与键盘无障碍审计） |
 | `skills/youzhao-mcp/` | MCP 接入说明（SKILL.md、逐工具参考、stdio 桥与冒烟脚本） |
 | `docs/` | 产品 PRD、架构设计（含 M0–M6 落地注记）、权限设计、前端设计、交互审核 |
@@ -66,13 +72,23 @@ pnpm smoke:ui
 
 ---
 
-## 权限模型（一句话版）
+## 权限模型（2026-10 现状）
 
-三种互斥身份：**所有者**（全平台唯一，隐式拥有全部能力）、**用户管理员**（只能管理被指派的用户，且只能授予**自己获准委派**的查看范围）、**成员**（只能看到被授权的蓝图）。
+四层正交判定，服务端强制，前端隐藏按钮只是体验优化：
 
-业务能力 `blueprint.manage` / `blueprint.publish` 必须带资源范围；所有者之外谁都不能管理同级或所有者。完整矩阵、错误码与端点契约见 [`docs/permission-design.md`](docs/permission-design.md)。
+| 层 | 表 | 作用 |
+| --- | --- | --- |
+| 身份 | `user_identity` | `owner`（全平台唯一，隐式全权）/ `user_admin`（管被指派的用户 + 自己管辖的分组）/ `member` |
+| 查看权 | `view_grants` | 读：分组或单蓝图；管理员可委派的查看范围 = 自己的查看范围 |
+| **管辖** | `group_managers` / `blueprint_managers` | 把分组或单张蓝图交给某位用户管理员负责（**只有所有者能设**） |
+| 业务能力 | `capabilities` | **例外授权**：`blueprint.manage`（维护）/ `blueprint.publish`（建蓝图、发版本），必须带资源范围 |
 
----
+- **有效能力 = 管辖派生 ∪ 例外授权**（并集，只加不减）：分组管辖 ⇒ 该组「维护 + 发布」，并覆盖组内全部蓝图；单蓝图管辖 ⇒ 只「维护」，**不**推出在该组新建。所有者由策略短路放行，不写能力行。
+- **MCP Token** 最终权限 = 绑定用户的有效能力 ∩ Token scope（`read:blueprint` / `publish:blueprint`）。
+- **建组只有所有者能做**（`group.create`）：建组等于划新地盘，不由管辖派生，否则「管一个组」会被延伸成「无限建组、每组都自动带发版权」。管理员需要新组 → 向所有者申请，所有者建组后用管辖把组交给他。
+- 「只维护不发版」的管理员：只给 `blueprint.manage`（或只划单蓝图管辖），他的发布入口与发布 Token 都不可用。
+
+完整矩阵、十三条不变量与端点契约见 [`docs/permission-design.md`](docs/permission-design.md)（§2.2 例外授权、§2.3 管辖、§4 不变量）。
 
 ## 旧数据迁移（v1 → v2）
 
@@ -89,18 +105,164 @@ pnpm server:migrate:legacy -- --data-dir /data/youzhao --owner admin --report /t
 
 ## 部署
 
+两种形态，**选一种，不要混用同一套数据库**：
+
+| 形态 | 适用 | 入口 |
+| --- | --- | --- |
+| **原生安装**（当前生产形态） | 单机 ECS / 内网服务器，无容器运行时 | 下一节，逐条照抄即可 |
+| 容器编排 | 已有 Docker Compose 的环境 | [`deploy/README.md`](deploy/README.md)：`install.sh` / `upgrade.sh` / `backup.sh` / `restore.sh` |
+
+两种形态的接口面一致：应用域 `/` → web、`/api` 与 `/mcp` → api；预览走**独立域** `/preview/...` → api，应用域下的 `/preview*` 恒 404（预览域必须与应用域不同源，服务端启动时校验）。
+
+### 原生安装（Agent 可直接照做的跑单）
+
+前置：Ubuntu 24.04+、PostgreSQL 16、Node 24、pnpm 12、nginx、两个域名（应用域 + 预览域）与证书；建议 ≥2 GiB 内存（1.6 GiB 可跑，但要把 `NODE_OPTIONS` 压到 384 MB）。
+
 ```bash
-cd deploy
-cp .env.example .env      # 首次请把 please-change-this-* 换成随机值
-./scripts/install.sh      # 构建并起 postgres / api / web / gateway，等待健康检查
-./scripts/upgrade.sh      # 升级（默认先备份）
-./scripts/backup.sh       # 备份（数据库 dump + 产物目录 + .env 快照）
-./scripts/restore.sh      # 恢复（需二次确认）
+# 0) 前置自检
+node -v && pnpm -v && psql --version && nginx -v
+
+# 1) 专用用户与目录：应用一律以 youzhao 身份运行，不要用 root 跑 pnpm/node
+useradd -r -m -d /srv/youzhao -s /bin/bash youzhao
+mkdir -p /srv/youzhao/{app,data/previews,logs} /etc/youzhao
+chown -R youzhao:youzhao /srv/youzhao
+
+# 2) 代码与依赖（契约包 / 服务端 / 前端各自独立安装）
+sudo -u youzhao git clone --branch rebuild-v2 --depth 1 https://github.com/FlorHop/YouZhao.git /srv/youzhao/app
+sudo -u youzhao bash -c 'cd /srv/youzhao/app && pnpm -C packages/contracts install && pnpm -C server install && pnpm -C web install'
+
+# 3) 数据库（密码换成 openssl rand -hex 32 的结果）
+sudo -u postgres psql -c "CREATE ROLE youzhao LOGIN PASSWORD '<随机>'"
+sudo -u postgres psql -c "CREATE DATABASE youzhao OWNER youzhao"
+
+# 4) 配置：把下方清单写进 /etc/youzhao/api.env，然后 chown root:youzhao && chmod 640
+# 5) 迁移（必须先于启动：api 启动时发现未执行迁移会直接退出）
+sudo -u youzhao bash -c 'cd /srv/youzhao/app && pnpm server:migrate'
+# 6) 前端静态资源（产物在 web/dist，由 nginx 直接托管）
+sudo -u youzhao pnpm -C web build
 ```
 
-应用域 `/` → web、`/api` 与 `/mcp` → api；预览**独立域** `/preview/...` → api，应用域下的 `/preview*` 一律 404。详见 [`deploy/README.md`](deploy/README.md) 与 [`docs/architecture-design.md`](docs/architecture-design.md) §8.2。
+`/etc/youzhao/api.env` 的完整键（`<…>` 必须换成本地随机值，建议 `openssl rand -hex 32`）：
 
----
+```ini
+APP_NAME=youzhao
+APP_ENV=production
+APP_HOST=https://<应用域>
+APP_TIMEZONE=Asia/Shanghai
+API_HOST=127.0.0.1                 # 由 nginx 反代；直连暴露才改 0.0.0.0
+API_PORT=3000
+API_PUBLIC_BASE_URL=https://<应用域>
+API_JSON_BODY_LIMIT_BYTES=5242880
+SESSION_TTL_SECONDS=43200
+SESSION_COOKIE_NAME=yz_session
+CSRF_ORIGIN_ALLOWLIST=https://<应用域>
+RATE_LIMIT_LOGIN_PER_MINUTE=10
+RATE_LIMIT_MCP_PER_MINUTE=120
+DB_DRIVER=postgres
+POSTGRES_HOST=127.0.0.1
+POSTGRES_PORT=5432
+POSTGRES_DB=youzhao
+POSTGRES_USER=youzhao
+POSTGRES_PASSWORD=<随机>
+ADMIN_USERNAME=admin               # 仅首次启动、用户表为空时创建所有者
+ADMIN_PASSWORD=<随机，≥12 位>
+ADMIN_DISPLAY_NAME=系统管理员
+PREVIEW_PUBLIC_BASE_PATH=/preview
+PREVIEW_STORAGE_PATH=/srv/youzhao/data/previews
+PREVIEW_TICKET_SECRET=<随机>
+PREVIEW_EMBED_SECRET=<随机 ≥32；留空则嵌入接口 503>
+PREVIEW_TICKET_TTL_SECONDS=60
+PREVIEW_DOMAIN=https://<预览域>       # 必须与应用域不同源
+MCP_ENABLED=true
+MCP_MAX_BODY_BYTES=5242880
+MCP_PATH=/mcp
+```
+
+systemd 单元 `/etc/systemd/system/youzhao-api.service`：
+
+```ini
+[Unit]
+Description=YouZhao API
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=youzhao
+Group=youzhao
+WorkingDirectory=/srv/youzhao/app/server
+EnvironmentFile=/etc/youzhao/api.env
+Environment=NODE_OPTIONS=--max-old-space-size=384
+ExecStart=/srv/youzhao/app/server/node_modules/.bin/tsx main.ts
+Restart=always
+RestartSec=3
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/srv/youzhao/data
+NoNewPrivileges=true
+
+[Install]
+WantedBy=multi-user.target
+```
+
+nginx 两个 vhost（Ubuntu 自带 `/etc/nginx/proxy_params`，其它发行版把转发头写进每个 `location`）：
+
+```nginx
+# /etc/nginx/conf.d/<应用域>.conf
+server {
+  listen 443 ssl http2;
+  server_name <应用域>;
+  ssl_certificate     /etc/letsencrypt/live/<应用域>/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/<应用域>/privkey.pem;
+  add_header Strict-Transport-Security "max-age=15552000" always;
+  root /srv/youzhao/app/web/dist;
+  index index.html;
+
+  location /api/  { proxy_pass http://127.0.0.1:3000; include /etc/nginx/proxy_params; proxy_buffering off; }
+  location /mcp   { proxy_pass http://127.0.0.1:3000; include /etc/nginx/proxy_params; proxy_buffering off; proxy_read_timeout 300s; }
+  location /preview { return 404; }                  # 预览只在预览域交付
+  location /      { try_files $uri $uri/ /index.html; }
+}
+
+# /etc/nginx/conf.d/<预览域>.conf
+server {
+  listen 443 ssl http2;
+  server_name <预览域>;
+  ssl_certificate     /etc/letsencrypt/live/<预览域>/fullchain.pem;
+  ssl_certificate_key /etc/letsencrypt/live/<预览域>/privkey.pem;
+  add_header Strict-Transport-Security "max-age=15552000" always;
+
+  location /preview/ { proxy_pass http://127.0.0.1:3000; include /etc/nginx/proxy_params; }
+  location /         { return 404; }
+}
+```
+
+```bash
+systemctl daemon-reload && systemctl enable --now youzhao-api
+curl -fsS http://127.0.0.1:3000/api/health    # 期望 contractVersion 2.0.0、services.database=up
+curl -fsS https://<应用域>/ | grep -o 'assets/index-[^"]*\.js'   # 确认拿到新前端包
+```
+
+### 升级（每次发版都是这套顺序）
+
+```bash
+sudo -u youzhao git -C /srv/youzhao/app pull --ff-only
+sudo -u youzhao bash -c 'cd /srv/youzhao/app && pnpm -C server install && pnpm -C web install'
+sudo -u youzhao bash -c 'cd /srv/youzhao/app && pnpm server:migrate'   # 先迁移
+sudo -u youzhao pnpm -C web build                                      # 再构建前端
+systemctl restart youzhao-api                                          # 最后重启 API
+systemctl is-active youzhao-api && curl -fsS http://127.0.0.1:3000/api/health
+```
+
+- **顺序不能换**：api 启动时会校验迁移完整性，发现未执行的迁移会直接拒绝启动（防止新代码跑旧库）。
+- 迁移只前进、没有 down 脚本；回滚 = 恢复升级前的 `pg_dump` + 切回旧提交 + 重建前端。
+- 升级前先备份：`pg_dump -Fc youzhao > /root/youzhao-predeploy-$(date +%Y%m%d-%H%M%S).dump`，并同步 `cp /etc/youzhao/api.env /root/`。
+
+### 原生安装的三个已知坑
+
+1. **root 残留文件会让 `git pull` / `web build` 失败**：`.git/objects` 或 `web/dist` 里有 root 拥有的文件时报 `insufficient permission ...` 或 `EACCES`；`chown -R youzhao:youzhao /srv/youzhao/app/.git /srv/youzhao/app/web/dist` 后重试。纪律：`git pull` / `pnpm install` / `pnpm build` / `pnpm server:migrate` 一律 `sudo -u youzhao`，只有 `pg_dump`、`systemctl`、`chown` 走 root。
+2. **已应用的迁移文件不能再改**：`schema_migrations` 记了每个文件的 sha256，改历史文件会在迁移时报校验失败；要调整就新增一个迁移。
+3. **预览域必须与应用域不同源**：`PREVIEW_DOMAIN` 与应用域同源时服务端启动即失败；本地用 `pnpm web:preview-origin`（3001 端口）模拟。
 
 ## MCP 接入
 
